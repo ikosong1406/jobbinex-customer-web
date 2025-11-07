@@ -81,7 +81,7 @@ const Signup: React.FC = () => {
                 placeholder="First Name"
                 value={formData.firstName}
                 onChange={handleChange}
-                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--color-primary]"
                 required
               />
               <input
@@ -90,7 +90,7 @@ const Signup: React.FC = () => {
                 placeholder="Last Name"
                 value={formData.lastName}
                 onChange={handleChange}
-                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--color-primary]"
                 required
               />
             </div>
@@ -101,7 +101,7 @@ const Signup: React.FC = () => {
               placeholder="Email Address"
               value={formData.email}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--color-primary]"
               required
             />
 
@@ -111,7 +111,7 @@ const Signup: React.FC = () => {
               placeholder="Phone Number"
               value={formData.phoneNumber}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--color-primary]"
               required
             />
 
@@ -121,7 +121,7 @@ const Signup: React.FC = () => {
               placeholder="Create Password"
               value={formData.password}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--color-primary]"
               required
             />
 
@@ -135,7 +135,10 @@ const Signup: React.FC = () => {
 
           <p className="text-sm text-gray-600 mt-6 text-center">
             Already have an account?{" "}
-            <Link to="/" className="text-[var(--color-primary)] hover:underline font-medium">
+            <Link
+              to="/"
+              className="text-[var(--color-primary)] hover:underline font-medium"
+            >
               Log in
             </Link>
           </p>
