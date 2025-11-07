@@ -62,7 +62,7 @@ const Login: React.FC = () => {
                 id="email"
                 type="email"
                 placeholder="Enter your email"
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[--color-primary)]"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#4eaa3c]"
                 required
               />
             </div>
@@ -78,7 +78,7 @@ const Login: React.FC = () => {
                 id="password"
                 type="password"
                 placeholder="Enter your password"
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[--color-primary)]"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#4eaa3c]"
                 required
               />
             </div>

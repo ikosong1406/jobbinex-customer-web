@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-  FaEnvelope,
-  FaPhone,
-  FaFileUpload,
-  FaUser,
-} from "react-icons/fa";
+import { FaEnvelope, FaPhone, FaFileUpload, FaUser } from "react-icons/fa";
 import { FiX } from "react-icons/fi";
 
 // -------- Tag Input Component --------
@@ -35,10 +30,7 @@ const TagInput = ({ label, tags, setTags, placeholder }: any) => {
             className="flex items-center gap-1 bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-1 rounded-full text-xs"
           >
             {tag}
-            <FiX
-              className="cursor-pointer"
-              onClick={() => handleRemove(tag)}
-            />
+            <FiX className="cursor-pointer" onClick={() => handleRemove(tag)} />
           </span>
         ))}
         <form onSubmit={handleAdd}>
@@ -73,17 +65,17 @@ const Profile = () => {
   const plans = [
     {
       name: "Starter",
-      price: "$0 / week",
+      price: "£19 / week",
       features: ["2 job apps/week", "Basic support"],
     },
     {
       name: "Pro",
-      price: "$29 / week",
+      price: "£39 / week",
       features: ["10 job apps/week", "1:1 Review", "Priority Assistant"],
     },
     {
       name: "Elite",
-      price: "$79 / week",
+      price: "£59 / week",
       features: ["Unlimited jobs", "Dedicated Manager", "24/7 Fast Support"],
     },
   ];

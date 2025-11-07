@@ -81,7 +81,7 @@ const Signup: React.FC = () => {
                 placeholder="First Name"
                 value={formData.firstName}
                 onChange={handleChange}
-                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--color-primary]"
+                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4eaa3c]"
                 required
               />
               <input
@@ -90,7 +90,7 @@ const Signup: React.FC = () => {
                 placeholder="Last Name"
                 value={formData.lastName}
                 onChange={handleChange}
-                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--color-primary]"
+                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4eaa3c]"
                 required
               />
             </div>
@@ -101,7 +101,7 @@ const Signup: React.FC = () => {
               placeholder="Email Address"
               value={formData.email}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--color-primary]"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4eaa3c]"
               required
             />
 
@@ -111,7 +111,7 @@ const Signup: React.FC = () => {
               placeholder="Phone Number"
               value={formData.phoneNumber}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--color-primary]"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4eaa3c]"
               required
             />
 
@@ -121,7 +121,7 @@ const Signup: React.FC = () => {
               placeholder="Create Password"
               value={formData.password}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--color-primary]"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4eaa3c]"
               required
             />
 
