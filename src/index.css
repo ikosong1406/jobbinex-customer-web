@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* 🌈 Define your color system globally */
+:root {
+  --color-primary: #4eaa3c;
+  --color-secondary: #d2d6db;
+  --color-white: #ffffff;
+  --color-black: #090d06;
+  
+}
+
+/* Apply defaults */
+body {
+  font-family: "Manrope", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-down {
+  animation: slide-down 0.25s ease-out;
+}
