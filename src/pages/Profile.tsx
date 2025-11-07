@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   FaEnvelope,
   FaPhone,
@@ -68,7 +68,7 @@ const Profile = () => {
   const [roles, setRoles] = useState<string[]>(["Product Manager"]);
   const [locations, setLocations] = useState<string[]>(["Remote", "Lagos"]);
 
-  const [profilePercent, setProfilePercent] = useState(80);
+  const [profilePercent] = useState(80);
 
   const plans = [
     {

@@ -1,4 +1,5 @@
-import React, { FormEvent } from "react";
+import React from "react";
+import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import bgImage from "../assets/background.jpg";
 import Logo from "../components/Logo";

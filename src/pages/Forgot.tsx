@@ -1,4 +1,5 @@
-import React, { useState, ChangeEvent, FormEvent } from "react";
+import React, { useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import bgImage from "../assets/background.jpg";
 import Logo from "../components/Logo";

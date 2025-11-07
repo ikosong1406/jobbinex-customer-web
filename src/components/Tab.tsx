@@ -1,19 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
-import { IoGrid, IoSettings, IoLogOut } from "react-icons/io5";
+import { IoGrid, IoLogOut } from "react-icons/io5";
 import { FaBriefcase } from "react-icons/fa";
 import { MdMessage } from "react-icons/md";
-import { FaWallet } from "react-icons/fa";
-import { FaTruckFast } from "react-icons/fa6";
-import { GiCardboardBoxClosed } from "react-icons/gi";
 import { FaUser } from "react-icons/fa";
 import Logo from "./Logo";
-
-interface Business {
-  name: string;
-  email: string;
-  profileImage?: string;
-}
 
 interface TabItem {
   path: string;
@@ -24,13 +15,6 @@ interface TabItem {
 const Tab: React.FC = () => {
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const location = useLocation();
-
-  // Mock business info (replace with real data)
-  const business: Business = {
-    name: "Jobbinex Logistics",
-    email: "info@jobbinex.com",
-    profileImage: "", // fallback to initial
-  };
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
