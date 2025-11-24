@@ -3,11 +3,10 @@ import {
   Routes,
   Route,
   Navigate,
-  // Outlet,
+  Outlet, // Needed for ProtectedLayout
 } from "react-router-dom";
-// import localForage from "localforage";
-// import { useEffect, useState } from "react";
-// import Splash from "./pages/Splash";
+import localforage from "localforage"; // Needed to check token
+import { useEffect, useState } from "react"; // Needed for auth state management
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/Forgot";
@@ -17,49 +16,58 @@ import Jobs from "./pages/Jobs";
 import Inbox from "./pages/Inbox";
 import Profile from "./pages/Profile";
 
-// Renamed and simplified the component for clarity
-// const ProtectedLayout = () => {
-//   const [isAuthenticated, setIsAuthenticated] = useState(null);
-//   const [loading, setLoading] = useState(true);
+// --- Protected Route Component ---
+/**
+ * Checks for the presence of the authentication token in localforage.
+ * Renders nested routes if authenticated, otherwise redirects to the login page.
+ */
+const ProtectedLayout = () => {
+  // isAuthenticated: null = checking auth, false = not logged in, true = logged in
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
 
-//   useEffect(() => {
-//     const checkAuth = async () => {
-//       try {
-//         const token = await localForage.getItem("token");
-//         setIsAuthenticated(!!token);
-//       } catch (error) {
-//         console.error("Auth check failed:", error);
-//         setIsAuthenticated(false);
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-//     checkAuth();
-//   }, []);
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        // Retrieve the token saved during login (using the key 'authToken' from the Login component)
+        const token = await localforage.getItem("authToken");
 
-//   if (loading) {
-//     return <Splash />;
-//   }
+        // If token exists and is a non-empty string, set isAuthenticated to true
+        setIsAuthenticated(!!token);
+      } catch (error) {
+        console.error("Auth check failed:", error);
+        setIsAuthenticated(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkAuth();
+  }, []);
 
-//   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
-// };
+  // If authenticated, render the nested routes via Outlet
+  // If not authenticated, redirect to the root path (which is Login)
+  return isAuthenticated ? <Outlet /> : <Navigate to="/" replace />;
+};
 
+// --- Main App Component ---
 export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Routes */}
+        {/* Public Routes (Accessible without login) */}
         <Route path="/" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot" element={<ForgotPassword />} />
 
-        {/* Protected Routes - All nested under a single ProtectedLayout */}
+        {/* Protected Routes 
+          Any route nested under this will require the user to be authenticated 
+          as determined by the logic in ProtectedLayout. 
+        */}
         {/* <Route element={<ProtectedLayout />}> */}
-        {/* Redirect authenticated users from the root to the merchant dashboard */}
-        <Route path="/" element={<Navigate to="/alt" replace />} />
-
-        {/* Main Merchant Dashboard with Tabs */}
+        {/* Main Customer Dashboard with Tabs */}
+        {/* Path is "/customer" */}
         <Route path="/customer" element={<TabLayout />}>
+          {/* Redirect /customer to /customer/dashboard */}
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="jobs" element={<Jobs />} />
@@ -67,11 +75,18 @@ export default function App() {
           <Route path="profile" element={<Profile />} />
         </Route>
 
-        {/* <Route path="*" element={<Navigate to="/merchant" replace />} />
-        </Route> */}
+        {/* Fallback for any protected route that doesn't match above */}
+        {/* Redirects any unmatched path inside the protected area back to the dashboard */}
+        <Route
+          path="*"
+          element={<Navigate to="/customer/dashboard" replace />}
+        />
+        {/* </Route> */}
 
-        {/* Catch-all route for any unhandled paths */}
-        {/* <Route path="*" element={<Navigate to="/login" replace />} /> */}
+        {/* Catch-all route for any unhandled PUBLIC paths. 
+          If a user tries to access /some-random-public-page, they will be redirected to Login.
+        */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
