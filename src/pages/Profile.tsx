@@ -7,6 +7,7 @@ import {
   FaCheckCircle,
   FaEye,
   FaEyeSlash,
+  FaSignOutAlt,
 } from "react-icons/fa";
 import { FiX } from "react-icons/fi";
 import axios, { AxiosError } from "axios";
@@ -150,6 +151,22 @@ const Profile: React.FC = () => {
   const [roles, setRoles] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
 
+  // Get user initials for profile picture
+  const getUserInitials = () => {
+    if (!firstName && !lastName) return "U";
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await localforage.removeItem("authToken");
+      toast.success("Logged out successfully");
+      navigate("/", { replace: true });
+    } catch (error) {
+      toast.error("Error during logout");
+    }
+  };
+
   const fetchUserData = async () => {
     try {
       setLoading(true);
@@ -173,9 +190,15 @@ const Profile: React.FC = () => {
       setJobEmail(data.jobEmail || "");
       setJobPassword(data.jobPassword || "");
       setCvLink(data.cv || "");
-      setIndustries(data.preferredIndustries);
-      setRoles(data.preferredRoles);
-      setLocations(data.preferredLocations);
+
+      // Ensure these are arrays and not undefined
+      setIndustries(
+        Array.isArray(data.preferredIndustries) ? data.preferredIndustries : []
+      );
+      setRoles(Array.isArray(data.preferredRoles) ? data.preferredRoles : []);
+      setLocations(
+        Array.isArray(data.preferredLocations) ? data.preferredLocations : []
+      );
     } catch (error) {
       const err = error as AxiosError;
       toast.error("Failed to load profile data.");
@@ -194,13 +217,14 @@ const Profile: React.FC = () => {
     const token = await localforage.getItem("authToken");
     if (!token) return;
 
+    // Ensure arrays are properly formatted
     const updates = {
       jobEmail,
       jobPassword,
       cv: cvLink,
-      preferredIndustries: industries,
-      preferredRoles: roles,
-      preferredLocations: locations,
+      preferredIndustries: Array.isArray(industries) ? industries : [],
+      preferredRoles: Array.isArray(roles) ? roles : [],
+      preferredLocations: Array.isArray(locations) ? locations : [],
     };
 
     try {
@@ -376,8 +400,11 @@ const Profile: React.FC = () => {
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-2xl text-gray-400">
-              <FaUser />
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-semibold text-white"
+              style={{ backgroundColor: PRIMARY_COLOR }}
+            >
+              {getUserInitials()}
             </div>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">
@@ -429,7 +456,9 @@ const Profile: React.FC = () => {
                     value={field.value}
                     readOnly={!field.setState}
                     onChange={
-                      field.setState ? (e) => field.setState!(e.target.value) : undefined
+                      field.setState
+                        ? (e) => field.setState!(e.target.value)
+                        : undefined
                     }
                     placeholder={field.placeholder}
                     className={`flex-1 outline-none text-sm ${
@@ -582,6 +611,20 @@ const Profile: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Mobile Logout Button - Bottom of Screen */}
+        <div className="md:hidden p-6">
+          <div className="flex justify-center">
+            <button
+              onClick={handleLogout}
+              className="flex items-center justify-center w-full text-white py-2 rounded-lg transition"
+              style={{ backgroundColor: PRIMARY_COLOR }}
+            >
+              <FaSignOutAlt className="mr-2" />
+              <span>Logout</span>
+            </button>
           </div>
         </div>
       </div>
