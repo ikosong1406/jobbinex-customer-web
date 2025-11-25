@@ -15,26 +15,26 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import Api from "../components/Api";
 
-// --- Stripe Integration ---
-import { loadStripe } from "@stripe/stripe-js";
-import type { Stripe } from "@stripe/stripe-js";
-
-const STRIPE_PUBLIC_KEY =
-  "pk_live_51Ryz2U6I86bdfIJm2BRzR0By7Sk7jcKlORcI1b517I8sRyFke6z5Y09Kry629ofHULdSTeh8oWWVDmWcaSpAqUfa00avd0Wekm"; // your Stripe key
-let stripePromise: Promise<Stripe | null>;
-const getStripe = () => {
-  if (!stripePromise) stripePromise = loadStripe(STRIPE_PUBLIC_KEY);
-  return stripePromise;
-};
-
-// --- Endpoints ---
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
 const USER_UPDATE_ENDPOINT = `${Api}/customer/profile`;
 const CHECKOUT_ENDPOINT = `${Api}/customer/checkout`;
 const SUBSCRIPTION_ENDPOINT = `${Api}/customer/subscribe`;
 const PRIMARY_COLOR = "#4eaa3c";
 
-// --- Types ---
+// ------------------ FIX: TYPE FOR PROFILE FIELDS ------------------
+interface ProfileField {
+  label: string;
+  value: string;
+  icon?: React.ComponentType<any>;
+  type?: string;
+  placeholder?: string;
+  setState?: (value: string) => void;
+  showPassword?: boolean;
+  setShowPassword?: (value: boolean) => void;
+}
+
+// ------------------
+
 interface PlanData {
   name: string;
   expiresAt: string;
@@ -53,6 +53,7 @@ interface UserData {
   preferredRoles: string[];
   preferredLocations: string[];
 }
+
 interface Plan {
   name: string;
   price: number;
@@ -64,7 +65,6 @@ interface Plan {
   highlight: boolean;
 }
 
-// --- Profile Completion ---
 const calculateProfileCompletion = (user: UserData): number => {
   const totalFields = 6;
   let completedFields = 0;
@@ -82,23 +82,27 @@ const calculateProfileCompletion = (user: UserData): number => {
   return Math.round((completedFields / totalFields) * 100);
 };
 
-// --- TagInput ---
 const TagInput = ({ label, tags, setTags, placeholder }: any) => {
   const [input, setInput] = useState("");
+
   const handleAdd = (e: any) => {
     e.preventDefault();
-    if (input.trim() && !tags.includes(input.trim()))
-      setTags([...tags, input.trim()]);
+    const trimmed = input.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed]);
+    }
     setInput("");
   };
+
   const handleRemove = (tag: string) =>
     setTags(tags.filter((t: string) => t !== tag));
+
   return (
     <div>
       <label className="text-sm font-medium text-gray-700 mb-2 block">
         {label}
       </label>
-      <div className="flex flex-wrap items-center gap-2 border border-gray-200 bg-gray-50 rounded-lg p-2 hover:border-blue-500 transition">
+      <div className="flex flex-wrap items-center gap-2 border border-gray-200 bg-gray-50 rounded-lg p-2">
         {tags.map((tag: string) => (
           <span
             key={tag}
@@ -108,17 +112,16 @@ const TagInput = ({ label, tags, setTags, placeholder }: any) => {
               color: PRIMARY_COLOR,
             }}
           >
-            {tag}{" "}
+            {tag}
             <FiX className="cursor-pointer" onClick={() => handleRemove(tag)} />
           </span>
         ))}
         <form onSubmit={handleAdd}>
           <input
-            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={placeholder}
-            className="outline-none text-sm bg-transparent p-1 flex-1"
+            className="outline-none text-sm bg-transparent p-1"
           />
         </form>
       </div>
@@ -126,10 +129,10 @@ const TagInput = ({ label, tags, setTags, placeholder }: any) => {
   );
 };
 
-// --- Main Profile ---
 const Profile: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showJobPassword, setShowJobPassword] = useState(false);
@@ -147,47 +150,50 @@ const Profile: React.FC = () => {
   const [roles, setRoles] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
 
-  // --- Fetch User Data ---
   const fetchUserData = async () => {
     try {
       setLoading(true);
       const token = await localforage.getItem("authToken");
+
       if (!token) {
         navigate("/", { replace: true });
         return;
       }
+
       const { data } = await axios.get<UserData>(USER_DATA_ENDPOINT, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       setUserData(data);
-      setFirstName(data.firstname || "");
-      setLastName(data.lastname || "");
-      setEmail(data.email || "");
-      setPhone(data.phonenumber || "");
+
+      setFirstName(data.firstname);
+      setLastName(data.lastname);
+      setEmail(data.email);
+      setPhone(data.phonenumber);
       setJobEmail(data.jobEmail || "");
       setJobPassword(data.jobPassword || "");
       setCvLink(data.cv || "");
-      setIndustries(data.preferredIndustries || []);
-      setRoles(data.preferredRoles || []);
-      setLocations(data.preferredLocations || []);
+      setIndustries(data.preferredIndustries);
+      setRoles(data.preferredRoles);
+      setLocations(data.preferredLocations);
     } catch (error) {
-      const axiosError = error as AxiosError;
-      console.error("Profile data fetch failed:", axiosError);
+      const err = error as AxiosError;
       toast.error("Failed to load profile data.");
-      if (axiosError.response?.status === 401) navigate("/", { replace: true });
+      if (err.response?.status === 401) navigate("/", { replace: true });
     } finally {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     fetchUserData();
-  }, [navigate]);
+  }, []);
 
-  // --- Save Profile ---
   const handleSaveProfile = async () => {
     setIsSaving(true);
     const token = await localforage.getItem("authToken");
     if (!token) return;
+
     const updates = {
       jobEmail,
       jobPassword,
@@ -196,27 +202,28 @@ const Profile: React.FC = () => {
       preferredRoles: roles,
       preferredLocations: locations,
     };
+
     try {
       await axios.patch(USER_UPDATE_ENDPOINT, updates, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      toast.success("Profile updated successfully!");
-      setUserData((prev) => (prev ? { ...prev, ...updates } : null));
-    } catch (error) {
-      console.error("Profile update failed:", error);
-      toast.error("Failed to save profile changes.");
+
+      toast.success("Profile updated!");
+      setUserData((prev) => (prev ? { ...prev, ...updates } : prev));
+    } catch {
+      toast.error("Failed to save changes.");
     } finally {
       setIsSaving(false);
     }
   };
 
-  // --- Stripe Checkout ---
   const handleStripeCheckout = async (planName: string) => {
     const token = await localforage.getItem("authToken");
     if (!token) {
       toast.error("Authentication failed.");
       return;
     }
+
     try {
       toast.loading("Redirecting to checkout...");
       const { data } = await axios.post(
@@ -224,16 +231,16 @@ const Profile: React.FC = () => {
         { planName },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      if (!data.redirectUrl) throw new Error("No checkout URL returned.");
+
+      if (!data.redirectUrl) throw new Error("Missing redirect URL.");
+
       window.location.href = data.redirectUrl;
     } catch (error: any) {
       toast.dismiss();
-      console.error("Checkout error:", error);
-      toast.error(error.message || "Something went wrong during checkout.");
+      toast.error(error.message || "Checkout error.");
     }
   };
 
-  // --- Activate subscription after payment ---
   useEffect(() => {
     const success = searchParams.get("success");
     const planName = searchParams.get("plan");
@@ -241,50 +248,47 @@ const Profile: React.FC = () => {
 
     const activateSubscription = async () => {
       if (!planName) return;
+
       const token = await localforage.getItem("authToken");
       if (!token) return;
+
       try {
         await axios.post(
           SUBSCRIPTION_ENDPOINT,
           { planName },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        toast.success("Subscription activated successfully!");
+        toast.success("Subscription activated!");
         fetchUserData();
-      } catch (error) {
-        console.error("Failed to activate subscription:", error);
-        toast.error(
-          "Payment successful but failed to activate subscription. Contact support."
-        );
+      } catch {
+        toast.error("Payment successful, but activation failed.");
       } finally {
         navigate("/profile", { replace: true });
       }
     };
 
     if (success === "true") {
-      toast.success("Payment successful! Activating your subscription...");
+      toast.success("Payment successful!");
       activateSubscription();
     }
 
     if (canceled === "true") {
-      toast.error("Payment was canceled. Please try again.");
+      toast.error("Payment canceled.");
       navigate("/profile", { replace: true });
     }
-  }, [searchParams, navigate]);
+  }, [searchParams]);
 
-  // --- Plans ---
   const plans: Plan[] = [
     {
       name: "Starter",
       price: 49.99,
       oldPrice: null,
       duration: "/Monthly",
-      description:
-        "Perfect for individuals just starting out or applying to a few jobs per week.",
+      description: "Perfect for individuals just starting.",
       features: [
         "Up to 50+ job applications",
-        "Application status tracking",
-        "Weekly performance summary",
+        "Status tracking",
+        "Weekly summary",
       ],
       discount: 0,
       highlight: false,
@@ -294,11 +298,11 @@ const Profile: React.FC = () => {
       price: 99.99,
       oldPrice: 124.99,
       duration: "/Monthly",
-      description: "Ideal for busy professionals who want consistent support.",
+      description: "Ideal for steady job seekers.",
       features: [
-        "Everything in Starter, plus:",
-        "Up to 100+ job applications",
-        "Priority application review",
+        "Everything in Starter",
+        "Up to 100+ applications",
+        "Priority review",
       ],
       discount: 20,
       highlight: true,
@@ -308,11 +312,11 @@ const Profile: React.FC = () => {
       price: 249.99,
       oldPrice: 499.99,
       duration: "/Monthly",
-      description: "For executives or power users who want full coverage.",
+      description: "For executives & power users.",
       features: [
-        "Everything in Professional, plus:",
-        "Unlimited job applications",
-        "Detailed progress reports",
+        "Everything in Pro",
+        "Unlimited applications",
+        "Detailed reports",
       ],
       discount: 50,
       highlight: false,
@@ -327,19 +331,52 @@ const Profile: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto" />
           <p className="mt-4 text-gray-600">Loading profile...</p>
         </div>
       </div>
     );
 
+  // -------------------------------------------
+  // PERSONAL INFORMATION FIXED SECTION
+  // -------------------------------------------
+
+  const personalFields: ProfileField[] = [
+    { label: "First Name", value: firstName },
+    { label: "Last Name", value: lastName },
+    { label: "Primary Email", value: email, icon: FaEnvelope },
+    {
+      label: "Job Hunting Email",
+      value: jobEmail,
+      icon: FaEnvelope,
+      setState: setJobEmail,
+    },
+    {
+      label: "Job Password",
+      value: jobPassword,
+      type: "password",
+      icon: FaEnvelope,
+      setState: setJobPassword,
+      showPassword: showJobPassword,
+      setShowPassword: setShowJobPassword,
+    },
+    { label: "Phone", value: phone, icon: FaPhone },
+    {
+      label: "CV Link",
+      value: cvLink,
+      icon: FaLink,
+      setState: setCvLink,
+      placeholder: "https://drive.google.com/your-cv",
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white py-10 px-4">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm flex flex-col md:flex-row items-center justify-between p-6">
+        <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-2xl">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-2xl text-gray-400">
               <FaUser />
             </div>
             <div>
@@ -353,62 +390,36 @@ const Profile: React.FC = () => {
               </p>
             </div>
           </div>
+
           <div className="w-full md:w-1/3 mt-4 md:mt-0">
             <p className="text-xs text-gray-500 mb-1">
               Profile Completion: {profilePercent}%
             </p>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="h-2 rounded-full transition-all"
+                className="h-2 rounded-full"
                 style={{
                   width: `${profilePercent}%`,
                   backgroundColor: PRIMARY_COLOR,
                 }}
-              ></div>
+              />
             </div>
           </div>
         </div>
 
         {/* Personal Info */}
         <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">
-            Personal Information
-          </h2>
+          <h2 className="text-lg font-semibold mb-6">Personal Information</h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {[
-              { label: "First Name", value: firstName },
-              { label: "Last Name", value: lastName },
-              { label: "Primary Email", value: email, icon: FaEnvelope },
-              {
-                label: "Job Hunting Email",
-                value: jobEmail,
-                icon: FaEnvelope,
-                setState: setJobEmail,
-              },
-              {
-                label: "Job Password",
-                value: jobPassword,
-                icon: FaEnvelope,
-                setState: setJobPassword,
-                type: "password",
-                showPassword: showJobPassword,
-                setShowPassword: setShowJobPassword,
-              },
-              { label: "Phone", value: phone, icon: FaPhone },
-              {
-                label: "CV Link",
-                value: cvLink,
-                icon: FaLink,
-                setState: setCvLink,
-                placeholder: "https://drive.google.com/your-cv-link",
-              },
-            ].map((field, index) => (
-              <div key={index}>
-                <label className="block text-sm text-gray-600 mb-1">
+            {personalFields.map((field, idx) => (
+              <div key={idx}>
+                <label className="text-sm text-gray-600 mb-1 block">
                   {field.label}
                 </label>
                 <div className="flex items-center border border-gray-200 rounded-lg px-3 py-2">
                   {field.icon && <field.icon className="text-gray-400 mr-2" />}
+
                   <input
                     type={
                       field.type === "password" && field.showPassword
@@ -416,27 +427,29 @@ const Profile: React.FC = () => {
                         : field.type || "text"
                     }
                     value={field.value}
-                    onChange={
-                      field.setState
-                        ? (e) => field.setState(e.target.value)
-                        : undefined
-                    }
                     readOnly={!field.setState}
+                    onChange={
+                      field.setState ? (e) => field.setState!(e.target.value) : undefined
+                    }
+                    placeholder={field.placeholder}
                     className={`flex-1 outline-none text-sm ${
-                      field.setState ? "bg-white" : "bg-gray-50 text-gray-600"
+                      field.setState ? "" : "bg-gray-50 text-gray-500"
                     }`}
-                    placeholder={field.placeholder || ""}
                   />
-                  {field.type === "password" && field.setState && (
+
+                  {field.type === "password" && field.setShowPassword && (
                     <button
                       type="button"
-                      onClick={() => field.setShowPassword(!field.showPassword)}
-                      className="text-gray-400 hover:text-gray-600 ml-2"
+                      className="text-gray-400 ml-2"
+                      onClick={() =>
+                        field.setShowPassword!(!field.showPassword)
+                      }
                     >
                       {field.showPassword ? <FaEyeSlash /> : <FaEye />}
                     </button>
                   )}
                 </div>
+
                 {field.label === "CV Link" && field.value && (
                   <a
                     href={field.value}
@@ -452,11 +465,10 @@ const Profile: React.FC = () => {
           </div>
         </div>
 
-        {/* Preferences */}
+        {/* Job Preferences */}
         <div className="bg-white rounded-2xl shadow-sm p-6 space-y-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Job Preferences
-          </h2>
+          <h2 className="text-lg font-semibold">Job Preferences</h2>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <TagInput
               label="Preferred Industries"
@@ -477,11 +489,12 @@ const Profile: React.FC = () => {
               placeholder="Add location..."
             />
           </div>
+
           <div className="flex justify-end pt-4">
             <button
               onClick={handleSaveProfile}
               disabled={isSaving}
-              className="px-6 py-2 text-white font-semibold rounded-lg transition disabled:opacity-50"
+              className="px-6 py-2 text-white font-semibold rounded-lg disabled:opacity-50"
               style={{ backgroundColor: PRIMARY_COLOR }}
             >
               {isSaving ? "Saving..." : "Save Profile & Preferences"}
@@ -491,25 +504,25 @@ const Profile: React.FC = () => {
 
         {/* Subscription Plans */}
         <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">
+          <h2 className="text-lg font-semibold mb-6">
             {hasActivePlan
               ? `Your Active Plan: ${currentPlanName}`
               : "Available Monthly Plans"}
           </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {plans.map((plan) => {
-              const isActivePlan = currentPlanName === plan.name;
+              const isActivePlan = plan.name === currentPlanName;
+
               return (
                 <div
                   key={plan.name}
-                  className={`border rounded-2xl p-5 hover:shadow-lg transition flex flex-col justify-between ${
+                  className={`rounded-2xl p-5 border flex flex-col justify-between ${
                     plan.highlight
-                      ? "border-4 border-yellow-500 shadow-xl"
-                      : "border-gray-200"
+                      ? "border-4 border-yellow-500 shadow-lg"
+                      : "border-gray-300"
                   } ${
-                    isActivePlan
-                      ? "bg-green-50/50 border-green-500"
-                      : "bg-white"
+                    isActivePlan ? "bg-green-50 border-green-500" : "bg-white"
                   }`}
                 >
                   <div>
@@ -518,15 +531,15 @@ const Profile: React.FC = () => {
                         MOST POPULAR
                       </span>
                     )}
-                    <h3 className="font-semibold text-gray-900 text-2xl">
-                      {plan.name}
-                    </h3>
+
+                    <h3 className="font-semibold text-2xl">{plan.name}</h3>
+
                     <div className="my-2">
-                      <span className="text-3xl font-extrabold text-gray-900 mr-1">
+                      <span className="text-3xl font-extrabold mr-1">
                         £{plan.price}
                       </span>
                       {plan.oldPrice && (
-                        <span className="text-sm text-gray-500 line-through mr-2">
+                        <span className="text-sm text-gray-500 line-through">
                           £{plan.oldPrice}
                         </span>
                       )}
@@ -534,17 +547,16 @@ const Profile: React.FC = () => {
                         {plan.duration}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600 mb-4">
+
+                    <p className="text-sm text-gray-600 mb-3">
                       {plan.description}
                     </p>
-                    <ul className="text-sm text-gray-700 space-y-2">
-                      {plan.features.map((f) => (
-                        <li key={f} className="flex items-start">
-                          <FaCheckCircle
-                            className="text-green-500 mt-1 mr-2 flex-shrink-0"
-                            size={14}
-                          />
-                          {f}
+
+                    <ul className="text-sm text-gray-700 space-y-1">
+                      {plan.features.map((feat) => (
+                        <li key={feat} className="flex items-start">
+                          <FaCheckCircle className="text-green-500 mt-1 mr-2" />
+                          {feat}
                         </li>
                       ))}
                     </ul>
@@ -553,14 +565,15 @@ const Profile: React.FC = () => {
                   {isActivePlan ? (
                     <button
                       disabled
-                      className="mt-5 px-4 py-2 bg-green-500 text-white rounded-lg text-sm disabled:opacity-80 flex items-center justify-center"
+                      className="mt-5 px-4 py-2 bg-green-500 text-white rounded-lg"
                     >
-                      <FaCheckCircle className="mr-2" /> Active Plan
+                      <FaCheckCircle className="inline mr-2" />
+                      Active Plan
                     </button>
                   ) : (
                     <button
                       onClick={() => handleStripeCheckout(plan.name)}
-                      className="mt-5 px-4 py-2 text-white rounded-lg text-sm hover:opacity-90 transition"
+                      className="mt-5 px-4 py-2 text-white rounded-lg hover:opacity-90"
                       style={{ backgroundColor: PRIMARY_COLOR }}
                     >
                       Subscribe Now

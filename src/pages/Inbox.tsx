@@ -57,7 +57,7 @@ const Inbox: React.FC = () => {
     useState<MessageData | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  // **REMOVED:** const [loading, setLoading] = useState(true); // This was declared but never read
   // **NEW:** State for User Data and Loading
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
@@ -110,7 +110,7 @@ const Inbox: React.FC = () => {
       ) {
         toast.error("Your session has expired. Please log in again.");
         await localforage.removeItem("authToken");
-        navigate("/", { replace: true });
+        navigate("/"); // **FIXED:** Removed second argument
       } else {
         toast.error("Failed to load user data.");
       }
@@ -121,7 +121,7 @@ const Inbox: React.FC = () => {
   // **END NEW**
 
   const fetchConversations = async () => {
-    setLoading(true);
+    // **REMOVED:** setLoading(true); // This was setting a state that's never used
     try {
       const token = await localforage.getItem("authToken");
       if (!token) {
@@ -155,7 +155,7 @@ const Inbox: React.FC = () => {
       console.error("Fetch failed:", axiosError);
       toast.error("Failed to load conversations.");
     } finally {
-      setLoading(false);
+      // **REMOVED:** setLoading(false); // This was setting a state that's never used
     }
   };
 
@@ -244,15 +244,7 @@ const Inbox: React.FC = () => {
     }
   };
 
-  // if (loading || loadingUser) {
-  //   return (
-  //     <div className="flex h-screen items-center justify-center bg-gray-100">
-  //       <p className="text-gray-600">
-  //         {loadingUser ? "Fetching user data..." : "Loading conversations..."}
-  //       </p>
-  //     </div>
-  //   );
-  // }
+  // **REMOVED:** The commented-out loading logic since we're not using loading state anymore
 
   return (
     <div className="flex h-screen bg-gray-100 font-inter">

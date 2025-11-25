@@ -296,7 +296,9 @@ const ForgotPassword: React.FC = () => {
                   {formData.code.map((digit, index) => (
                     <input
                       key={index}
-                      ref={(el) => (codeInputsRef.current[index] = el)}
+                      ref={(el) => {
+                        codeInputsRef.current[index] = el;
+                      }}
                       type="text"
                       maxLength={1}
                       value={digit}

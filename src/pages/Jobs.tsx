@@ -67,7 +67,7 @@ const PRIMARY_COLOR = "var(--color-primary)"; // Assuming this variable is defin
 interface JobDetailsModalProps {
   job: JobData;
   onClose: () => void;
-  onUpdateStatus: (jobId: string, newStatus: JobStatus) => void;
+  onUpdateStatus: (jobId: string, newStatus: JobStatus) => Promise<void>;
 }
 
 const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
@@ -253,16 +253,18 @@ const Jobs: React.FC = () => {
   // --- Job Update Handler (Shortlisted/Applications) ---
   const handleUpdateStatus = async (
     jobId: string,
-    newStatus: JobStatus,
-    isShortlistedAction = false // true for Approve/Reject from Shortlisted tab
-  ) => {
+    newStatus: JobStatus
+  ): Promise<void> => {
     try {
       const token = await localforage.getItem("authToken");
-      if (!token) return toast.error("Session expired. Please log in.");
+      if (!token) {
+        toast.error("Session expired. Please log in.");
+        return;
+      }
 
       // For Shortlisted "Approve", we set dateApplied and status
       const updateData: any = { status: newStatus };
-      if (newStatus === "Applied" && isShortlistedAction) {
+      if (newStatus === "Applied" && activeTab === "shortlisted") {
         updateData.appliedDate = new Date().toISOString();
       }
 
@@ -360,7 +362,7 @@ const Jobs: React.FC = () => {
 
   const handleApprove = (job: JobData) => {
     // Approve means setting status to "Applied" and setting the appliedDate
-    handleUpdateStatus(job._id, "Applied", true);
+    handleUpdateStatus(job._id, "Applied");
   };
 
   const handleReject = (jobId: string) => {
@@ -478,7 +480,6 @@ const Jobs: React.FC = () => {
           jobs={filteredApplications}
           getStatusBadge={getStatusBadge}
           setSelectedJob={setSelectedJob}
-          handleUpdateStatus={handleUpdateStatus}
         />
       )}
 
@@ -506,12 +507,12 @@ const Jobs: React.FC = () => {
 
 // --- Sub Components for Cleaner Rendering ---
 
+// Fixed ApplicationListView component
 const ApplicationListView: React.FC<{
   jobs: JobData[];
-  getStatusBadge: (status: JobStatus) => JSX.Element;
+  getStatusBadge: (status: JobStatus) => React.ReactElement;
   setSelectedJob: (job: JobData) => void;
-  handleUpdateStatus: (jobId: string, newStatus: JobStatus) => Promise<void>;
-}> = ({ jobs, getStatusBadge, setSelectedJob, handleUpdateStatus }) => {
+}> = ({ jobs, getStatusBadge, setSelectedJob }) => {
   return (
     <>
       {jobs.length === 0 ? (
@@ -602,6 +603,7 @@ const ApplicationListView: React.FC<{
   );
 };
 
+// Fix: Added React import
 const ShortlistedListView: React.FC<{
   jobs: JobData[];
   handleApprove: (job: JobData) => void;

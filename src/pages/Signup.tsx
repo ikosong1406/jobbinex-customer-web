@@ -119,10 +119,7 @@ const Signup: React.FC = () => {
       // Simulate API call delay if needed, otherwise just use the axios call
       // await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const response = await axios.post<SignupResponse>(
-        SIGNUP_ENDPOINT,
-        signupData
-      );
+      await axios.post<SignupResponse>(SIGNUP_ENDPOINT, signupData);
 
       // Success Notification
       toast.success(

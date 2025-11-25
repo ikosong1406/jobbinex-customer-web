@@ -29,7 +29,6 @@ const Tab: React.FC = () => {
   const location = useLocation();
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [loadingUser, setLoadingUser] = useState(true);
 
   // Placeholder for your API endpoint
   const USER_DATA_ENDPOINT = `${Api}/customer/userdata`; // Example endpoint
@@ -39,7 +38,6 @@ const Tab: React.FC = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        setLoadingUser(true);
         const token = await localforage.getItem("authToken");
 
         if (!token) {
@@ -73,7 +71,6 @@ const Tab: React.FC = () => {
           toast.error("Failed to load user data.");
         }
       } finally {
-        setLoadingUser(false);
       }
     };
     fetchUserData();

@@ -3,10 +3,9 @@ import {
   Routes,
   Route,
   Navigate,
-  Outlet, // Needed for ProtectedLayout
 } from "react-router-dom";
-import localforage from "localforage"; // Needed to check token
-import { useEffect, useState } from "react"; // Needed for auth state management
+// import localforage from "localforage";
+// import { useEffect, useState } from "react";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/Forgot";
@@ -21,33 +20,33 @@ import Profile from "./pages/Profile";
  * Checks for the presence of the authentication token in localforage.
  * Renders nested routes if authenticated, otherwise redirects to the login page.
  */
-const ProtectedLayout = () => {
-  // isAuthenticated: null = checking auth, false = not logged in, true = logged in
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
+// const ProtectedLayout = () => {
+//   // isAuthenticated: null = checking auth, false = not logged in, true = logged in
+//   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+//   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Retrieve the token saved during login (using the key 'authToken' from the Login component)
-        const token = await localforage.getItem("authToken");
+//   useEffect(() => {
+//     const checkAuth = async () => {
+//       try {
+//         // Retrieve the token saved during login (using the key 'authToken' from the Login component)
+//         const token = await localforage.getItem("authToken");
 
-        // If token exists and is a non-empty string, set isAuthenticated to true
-        setIsAuthenticated(!!token);
-      } catch (error) {
-        console.error("Auth check failed:", error);
-        setIsAuthenticated(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-    checkAuth();
-  }, []);
+//         // If token exists and is a non-empty string, set isAuthenticated to true
+//         setIsAuthenticated(!!token);
+//       } catch (error) {
+//         console.error("Auth check failed:", error);
+//         setIsAuthenticated(false);
+//       } finally {
+//         setLoading(false);
+//       }
+//     };
+//     checkAuth();
+//   }, []);
 
-  // If authenticated, render the nested routes via Outlet
-  // If not authenticated, redirect to the root path (which is Login)
-  return isAuthenticated ? <Outlet /> : <Navigate to="/" replace />;
-};
+//   // If authenticated, render the nested routes via Outlet
+//   // If not authenticated, redirect to the root path (which is Login)
+//   return isAuthenticated ? <Outlet /> : <Navigate to="/" replace />;
+// };
 
 // --- Main App Component ---
 export default function App() {
