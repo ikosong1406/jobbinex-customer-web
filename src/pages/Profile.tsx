@@ -3,7 +3,6 @@ import {
   FaEnvelope,
   FaPhone,
   FaLink,
-  FaUser,
   FaCheckCircle,
   FaEye,
   FaEyeSlash,
