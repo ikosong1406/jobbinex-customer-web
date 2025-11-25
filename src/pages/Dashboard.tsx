@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import axios, { AxiosError } from "axios";
 import localforage from "localforage";
 import toast from "react-hot-toast";
-import { FaUserPlus } from "react-icons/fa"; // Icon for subscription CTA
+import { FaUserPlus } from "react-icons/fa";
 import Api from "../components/Api";
 
 // --- Type Definitions (Updated based on API Response & Requirements) ---
@@ -23,14 +23,14 @@ interface PlanData {
 
 // Interface for interview dates from the Job schema
 interface InterviewDate {
-  date: string; // Use string for date as it comes from the API
+  date: string;
   type: "Screening" | "Technical" | "Behavioral" | "On-site";
   notes: string;
 }
 
 // Interface for a Job from the UserData
 interface JobData {
-  _id: string; // Add ID for key/tracking
+  _id: string;
   title: string;
   status:
     | "Pending"
@@ -40,27 +40,29 @@ interface JobData {
     | "Rejected"
     | "Hired"
     | "Archived";
-  appliedDate: string | null; // Date the job was applied, crucial for the chart
+  appliedDate: string | null;
   interviewDates: InterviewDate[];
+  company: string;
+  location: string;
+  jobType: string;
   // Add other job fields as necessary
 }
 
 interface UserData {
-  plan?: PlanData; // Optional plan data
+  plan?: PlanData;
   _id: string;
   firstname: string;
   lastname: string;
   email: string;
   phonenumber: string;
-  jobs: JobData[]; // Array of jobs (used for calculations)
-  assistant: any; // Can be null if no assistant is assigned
-  notifications: any[]; // Array of notifications
-  jobEmail?: string | null; // Used for profile completion
-  cv?: string | null; // Used for profile completion
-  preferredIndustries: string[]; // Used for profile completion
-  preferredRoles: string[]; // Used for profile completion
-  preferredLocations: string[]; // Used for profile completion
-  // Add other fields from the user schema as needed
+  jobs: JobData[];
+  assistant: any;
+  notifications: any[];
+  jobEmail?: string | null;
+  cv?: string | null;
+  preferredIndustries: string[];
+  preferredRoles: string[];
+  preferredLocations: string[];
 }
 
 // Data point for the weekly applications chart
@@ -76,20 +78,27 @@ interface DashboardState {
   upcomingInterviews: number;
   profileCompletion: number;
   weeklyApplications: WeeklyApplicationData[];
-  assistant: any; // Assistant data or null
+  assistant: any;
   notifications: any[];
+  statusCounts: {
+    applied: number;
+    interviewing: number;
+    offerReceived: number;
+    hired: number;
+    rejected: number;
+    pending: number;
+  };
 }
 
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
 const PRIMARY_COLOR = "#4eaa3c";
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// --- Helper: Weekly Application Data Logic ---
+// --- Helper: Weekly Application Data Logic (Updated to include all jobs with appliedDate) ---
 
 /**
  * Calculates the count of applications for each day of the current week.
- * @param jobs - Array of job data.
- * @returns Array of data for the weekly applications chart.
+ * Now includes all jobs with appliedDate regardless of status
  */
 const getWeeklyApplicationsData = (
   jobs: JobData[]
@@ -97,7 +106,7 @@ const getWeeklyApplicationsData = (
   const now = new Date();
   // Get the start of the current week (Sunday)
   const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay()); // Go back to Sunday (0)
+  startOfWeek.setDate(now.getDate() - now.getDay());
   startOfWeek.setHours(0, 0, 0, 0);
 
   // Initialize data for the week
@@ -111,15 +120,15 @@ const getWeeklyApplicationsData = (
     6: 0,
   };
 
-  // Filter and count jobs applied this week
+  // Filter jobs that have an appliedDate (regardless of status)
   jobs
-    .filter((job) => job.status === "Applied" && job.appliedDate)
+    .filter((job) => job.appliedDate)
     .forEach((job) => {
       const appliedDate = new Date(job.appliedDate!);
 
       // Check if the applied date is from the current week (on or after startOfWeek)
       if (appliedDate >= startOfWeek && appliedDate <= now) {
-        const dayOfWeek = appliedDate.getDay(); // 0 (Sunday) to 6 (Saturday)
+        const dayOfWeek = appliedDate.getDay();
         applicationsByDay[dayOfWeek]++;
       }
     });
@@ -133,19 +142,12 @@ const getWeeklyApplicationsData = (
 
 // --- Profile Completion Logic ---
 const calculateProfileCompletion = (user: UserData): number => {
-  const totalFields = 5; // fields we check for completion
+  const totalFields = 5;
   let completedFields = 0;
 
-  // 1. Phone Number
   if (user.phonenumber) completedFields++;
-
-  // 2. Job Email
   if (user.jobEmail) completedFields++;
-
-  // 3. CV/Resume
   if (user.cv) completedFields++;
-
-  // 4. Preferred Industries/Roles/Locations (check if any preference is set)
   if (
     user.preferredIndustries.length > 0 ||
     user.preferredRoles.length > 0 ||
@@ -153,11 +155,32 @@ const calculateProfileCompletion = (user: UserData): number => {
   ) {
     completedFields++;
   }
-
-  // 5. Last Name (As a substitute for a general profile completeness metric like 'avatar')
   if (user.lastname) completedFields++;
 
   return Math.round((completedFields / totalFields) * 100);
+};
+
+// --- Helper: Get Assistant Initials ---
+const getAssistantInitials = (assistant: any): string => {
+  if (!assistant) return "?";
+
+  const { firstname, lastname } = assistant;
+  const firstInitial = firstname ? firstname.charAt(0).toUpperCase() : "";
+  const lastInitial = lastname ? lastname.charAt(0).toUpperCase() : "";
+
+  return firstInitial + lastInitial;
+};
+
+// --- Helper: Get Status Counts ---
+const getStatusCounts = (jobs: JobData[]) => {
+  return {
+    applied: jobs.filter((job) => job.status === "Applied").length,
+    interviewing: jobs.filter((job) => job.status === "Interviewing").length,
+    offerReceived: jobs.filter((job) => job.status === "Offer Received").length,
+    hired: jobs.filter((job) => job.status === "Hired").length,
+    rejected: jobs.filter((job) => job.status === "Rejected").length,
+    pending: jobs.filter((job) => job.status === "Pending").length,
+  };
 };
 
 // --- Component Start ---
@@ -170,10 +193,8 @@ const Home: React.FC = () => {
 
   // Function to process fetched user data into dashboard state
   const processDataForDashboard = (user: UserData): DashboardState => {
-    // 1. Total Applications
-    const totalApplications = user.jobs.filter(
-      (job) => job.status === "Applied"
-    ).length;
+    // 1. Total Applications (all jobs with appliedDate)
+    const totalApplications = user.jobs.filter((job) => job.appliedDate).length;
 
     // 2. Upcoming Interviews
     const upcomingInterviews = user.jobs.reduce((count, job) => {
@@ -183,10 +204,9 @@ const Home: React.FC = () => {
         job.interviewDates.length > 0
       ) {
         const now = new Date();
-        // Sort and find the first interview date that is in the future
         const nextInterview = job.interviewDates
-          .map((i) => new Date(i.date)) // Convert to Date objects
-          .sort((a, b) => a.getTime() - b.getTime()) // Sort ascending
+          .map((i) => new Date(i.date))
+          .sort((a, b) => a.getTime() - b.getTime())
           .find((date) => date > now);
 
         if (nextInterview) {
@@ -199,8 +219,11 @@ const Home: React.FC = () => {
     // 3. Profile Completion
     const profileCompletion = calculateProfileCompletion(user);
 
-    // 4. Weekly Applications Data (NEW LOGIC)
+    // 4. Weekly Applications Data (includes all jobs with appliedDate)
     const weeklyApplications = getWeeklyApplicationsData(user.jobs);
+
+    // 5. Status Counts
+    const statusCounts = getStatusCounts(user.jobs);
 
     return {
       userName: user.firstname,
@@ -210,10 +233,11 @@ const Home: React.FC = () => {
       weeklyApplications: weeklyApplications,
       assistant: user.assistant,
       notifications: user.notifications,
+      statusCounts: statusCounts,
     };
   };
 
-  // --- Data Fetching Logic (Same as TabLayout) ---
+  // --- Data Fetching Logic ---
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -225,14 +249,12 @@ const Home: React.FC = () => {
           return;
         }
 
-        // NOTE: The response type is explicitly UserData
         const response = await axios.get<UserData>(USER_DATA_ENDPOINT, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
 
-        // Process fetched data into dashboard state
         const processedData = processDataForDashboard(response.data);
         setDashboardData(processedData);
       } catch (error) {
@@ -261,7 +283,7 @@ const Home: React.FC = () => {
     navigate("/customer/profile");
   };
 
-  // Handle Assistant Subscription Redirect (assuming the subscribe page is /customer/plan)
+  // Handle Assistant Subscription Redirect
   const handleSubscribe = () => {
     navigate("/customer/plan");
   };
@@ -309,29 +331,77 @@ const Home: React.FC = () => {
         )}
 
         {/* Snapshot Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 mb-10">
-          {[
-            {
-              title: "Total Applications (All Time)",
-              value: data.totalApplications,
-            },
-            {
-              title: "Upcoming Interviews",
-              value: data.upcomingInterviews,
-            },
-          ].map((stat, index) => (
-            <div
-              key={index}
-              className="bg-white rounded-2xl shadow-md border border-gray-100 p-5 flex items-center hover:shadow-lg transition"
-            >
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">{stat.title}</p>
-                <h3 className="text-2xl font-bold text-gray-900">
-                  {stat.value}
-                </h3>
-              </div>
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+          {/* Total Applications Card */}
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-5 flex items-center hover:shadow-lg transition">
+            <div className="ml-4">
+              <p className="text-sm text-gray-500">Total Applications</p>
+              <h3 className="text-2xl font-bold text-gray-900">
+                {data.totalApplications}
+              </h3>
+              <p className="text-xs text-gray-400 mt-1">
+                All jobs with applied dates
+              </p>
             </div>
-          ))}
+          </div>
+
+          {/* Applied Status Card */}
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-5 flex items-center hover:shadow-lg transition">
+            <div className="ml-4">
+              <p className="text-sm text-gray-500">Applied</p>
+              <h3 className="text-2xl font-bold text-blue-600">
+                {data.statusCounts.applied}
+              </h3>
+              <p className="text-xs text-gray-400 mt-1">Active applications</p>
+            </div>
+          </div>
+
+          {/* Interviewing Status Card */}
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-5 flex items-center hover:shadow-lg transition">
+            <div className="ml-4">
+              <p className="text-sm text-gray-500">Interviewing</p>
+              <h3 className="text-2xl font-bold text-yellow-600">
+                {data.statusCounts.interviewing}
+              </h3>
+              <p className="text-xs text-gray-400 mt-1">In interview process</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-5 flex items-center hover:shadow-lg transition">
+            <div className="ml-4">
+              <p className="text-sm text-gray-500">Hired</p>
+              <h3 className="text-2xl font-bold text-purple-600">
+                {data.statusCounts.hired}
+              </h3>
+              <p className="text-xs text-gray-400 mt-1">
+                Successful placements
+              </p>
+            </div>
+          </div>
+
+          {/* Rejected Card */}
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-5 flex items-center hover:shadow-lg transition">
+            <div className="ml-4">
+              <p className="text-sm text-gray-500">Rejected</p>
+              <h3 className="text-2xl font-bold text-red-600">
+                {data.statusCounts.rejected}
+              </h3>
+              <p className="text-xs text-gray-400 mt-1">
+                Applications declined
+              </p>
+            </div>
+          </div>
+
+          {/* Pending Card */}
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-5 flex items-center hover:shadow-lg transition">
+            <div className="ml-4">
+              <p className="text-sm text-gray-500">Pending</p>
+              <h3 className="text-2xl font-bold text-gray-600">
+                {data.statusCounts.pending}
+              </h3>
+              <p className="text-xs text-gray-400 mt-1">Awaiting review</p>
+            </div>
+          </div>
         </div>
 
         {/* Chart + Assistant Card */}
@@ -367,10 +437,6 @@ const Home: React.FC = () => {
                     )}{" "}
                     jobs this week
                   </span>
-                  <span className="text-green-600 font-semibold">
-                    {/* Placeholder logic for a quick comparison message, needs real backend data for accuracy */}
-                    Great job! Keep applying!
-                  </span>
                 </div>
               </>
             ) : (
@@ -385,13 +451,13 @@ const Home: React.FC = () => {
             {data.assistant ? (
               <>
                 <div className="flex items-center gap-4 mb-6">
-                  {/* <img
-                    src={
-                      data.assistant.image || "https://i.pravatar.cc/80?img=11"
-                    }
-                    alt={data.assistant.name}
-                    className="h-16 w-16 rounded-full object-cover"
-                  /> */}
+                  {/* Assistant Profile Picture with Initials */}
+                  <div
+                    className="h-16 w-16 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-xl"
+                    style={{ backgroundColor: PRIMARY_COLOR }}
+                  >
+                    {getAssistantInitials(data.assistant)}
+                  </div>
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">
                       {data.assistant.firstname} {data.assistant.lastname}
@@ -408,25 +474,20 @@ const Home: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="bg-gray-50 rounded-xl p-4 text-center">
-                    <p className="text-sm text-gray-500">Total Applied</p>
-                    <h3 className="text-xl font-bold text-gray-900">
-                      {data.assistant.totalApplied || 0}
-                    </h3>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-4 text-center">
-                    <p className="text-sm text-gray-500">Interviews Secured</p>
-                    <h3 className="text-xl font-bold text-gray-900">
-                      {data.assistant.interviewsSecured || 0}
-                    </h3>
-                  </div>
-                </div>
-
-                <p className="text-gray-600 text-sm text-center">
+                <p className="text-gray-600 text-sm text-center mb-4">
                   Your assistant helps apply for jobs, schedules interviews, and
                   keeps you updated in real-time.
                 </p>
+
+                <div className="text-center">
+                  <button
+                    onClick={() => navigate("/customer/jobs")}
+                    className="px-6 py-2 text-white font-semibold rounded-lg transition hover:opacity-90"
+                    style={{ backgroundColor: PRIMARY_COLOR }}
+                  >
+                    View Job Applications
+                  </button>
+                </div>
               </>
             ) : (
               <div className="flex flex-col items-center p-8 text-center">
@@ -440,7 +501,7 @@ const Home: React.FC = () => {
                 </p>
                 <button
                   onClick={handleSubscribe}
-                  className="w-full sm:w-auto px-6 py-2 text-white font-semibold rounded-lg transition"
+                  className="w-full sm:w-auto px-6 py-2 text-white font-semibold rounded-lg transition hover:opacity-90"
                   style={{ backgroundColor: PRIMARY_COLOR }}
                 >
                   View Subscription Plans
@@ -459,7 +520,7 @@ const Home: React.FC = () => {
             <ul className="divide-y divide-gray-100">
               {data.notifications.map((note: any) => (
                 <li
-                  key={note._id || Math.random()} // Use _id if available, otherwise fallback
+                  key={note._id || Math.random()}
                   className="py-3 flex justify-between items-center"
                 >
                   <p className="text-gray-800">{note.message}</p>
