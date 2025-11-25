@@ -6,72 +6,77 @@ import toast from "react-hot-toast";
 import Api from "../components/Api";
 
 // --- Custom Hook/Import Mock ---
-// Assuming this is used for navigation on session expiry
-// Replace with 'import { useNavigate } from "react-router-dom";' if you're using react-router-dom
 const useNavigate = () => (path: string) =>
   console.log(`Simulating navigation to ${path}`);
 
-// --- Type Definitions based on the final Mongoose Schema ---
+// --- Type Definitions ---
 
-// Defines a single entry in the chat thread
 interface ConversationEntry {
   _id: string;
   role: "user" | "assistant";
-  content: string; // Renamed from 'text' to match the schema 'content'
-  createdAt: string; // The time the message was sent
+  content: string;
+  createdAt: string;
 }
 
-// Defines the entire conversation thread (the Parent 'Message' document)
 interface MessageData {
-  _id: string; // The conversation ID (Message ID in your schema)
+  _id: string;
   userId: string;
   assistantId: string;
-  // This is the array that holds all individual messages
   conversation: ConversationEntry[];
-  // Placeholder data for display (must be filled during fetch/population)
-  assistantName: string; // The name of the Assistant
-  assistantAvatar: string; // The avatar of the Assistant
-  isAssistantOnline: boolean; // Online status of the Assistant
+  title: string;
+  lastActivityAt: string;
+  createdAt: string;
+  updatedAt: string;
+  // Display data from assistant
+  assistantName: string;
+  assistantAvatar: string;
+  isAssistantOnline: boolean;
 }
 
-// **NEW:** Interface for User Data
 interface UserData {
   _id: string;
   firstname: string;
   lastname: string;
   email: string;
-  // ... potentially other fields
+  assistant: {
+    _id: string;
+    firstname: string;
+    lastname: string;
+    status: "online" | "offline";
+  };
+  messages: MessageData[]; // Array of message objects
+  jobs: any[];
+  notifications: any[];
+  preferredIndustries: string;
+  preferredLocations: string;
+  preferredRoles: string;
 }
 
-// Placeholder for the primary color variable (often green or blue for user messages)
-const USER_MESSAGE_COLOR_CLASS = "bg-green-500"; // Changed to a common green class
-const PRIMARY_COLOR = USER_MESSAGE_COLOR_CLASS; // Using green for consistency
-const MESSAGE_API_ENDPOINT = `${Api}/customer/sendMessage`; // Conversation endpoint
-// **NEW:** User Data Endpoint
-const USER_DATA_ENDPOINT = `${Api}/customer/userdata`; // Example endpoint
+const USER_MESSAGE_COLOR_CLASS = "bg-green-500";
+const PRIMARY_COLOR = USER_MESSAGE_COLOR_CLASS;
+const SEND_MESSAGE_ENDPOINT = `${Api}/customer/sendMessage`;
+const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
+const CREATE_CONVERSATION_ENDPOINT = `${Api}/customer/createConv`;
 
 const Inbox: React.FC = () => {
-  const navigate = useNavigate(); // Hook for navigation
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState<MessageData[]>([]);
   const [selectedConversation, setSelectedConversation] =
     useState<MessageData | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // **REMOVED:** const [loading, setLoading] = useState(true); // This was declared but never read
-  // **NEW:** State for User Data and Loading
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
+  const [loadingConversation, setLoadingConversation] = useState(false);
 
   const chatBodyRef = useRef<HTMLDivElement>(null);
 
-  // Function to simulate scrolling to the bottom of the chat
   const scrollToBottom = () => {
     if (chatBodyRef.current) {
       chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
     }
   };
 
-  // **NEW:** Function to get User Initials
   const getUserInitials = (user: UserData | null): string => {
     if (!user) return "U";
     const firstInitial = user.firstname ? user.firstname[0].toUpperCase() : "";
@@ -79,9 +84,31 @@ const Inbox: React.FC = () => {
     return `${firstInitial}${lastInitial}`.substring(0, 2) || "U";
   };
 
+  // Helper function to get assistant details from userData
+  const getAssistantDetails = (userData: UserData) => {
+    return {
+      assistantName: `${userData.assistant.firstname} ${userData.assistant.lastname}`,
+      assistantAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        userData.assistant.firstname + "+" + userData.assistant.lastname
+      )}&background=4eaa3c&color=fff`,
+      isAssistantOnline: userData.assistant.status === "online",
+    };
+  };
+
+  // Helper function to enhance message data with display information
+  const enhanceMessageData = (
+    message: MessageData,
+    userData: UserData
+  ): MessageData => {
+    const assistantDetails = getAssistantDetails(userData);
+    return {
+      ...message,
+      ...assistantDetails,
+    };
+  };
+
   // --- Data Fetching ---
 
-  // **NEW:** User Data Fetching Function
   const fetchUserData = async () => {
     setLoadingUser(true);
     try {
@@ -89,13 +116,13 @@ const Inbox: React.FC = () => {
 
       if (!token) {
         toast.error("Session expired or token missing. Please log in.");
-        navigate("/"); // Redirect to login
+        navigate("/");
         return;
       }
 
       const response = await axios.get<UserData>(USER_DATA_ENDPOINT, {
         headers: {
-          Authorization: `Bearer ${token}`, // Send token in the Authorization header
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -110,7 +137,7 @@ const Inbox: React.FC = () => {
       ) {
         toast.error("Your session has expired. Please log in again.");
         await localforage.removeItem("authToken");
-        navigate("/"); // **FIXED:** Removed second argument
+        navigate("/");
       } else {
         toast.error("Failed to load user data.");
       }
@@ -118,10 +145,14 @@ const Inbox: React.FC = () => {
       setLoadingUser(false);
     }
   };
-  // **END NEW**
 
-  const fetchConversations = async () => {
-    // **REMOVED:** setLoading(true); // This was setting a state that's never used
+  const fetchOrCreateConversation = async () => {
+    if (!userData || !userData.assistant) {
+      toast.error("No assistant assigned to your account.");
+      return;
+    }
+
+    setLoadingConversation(true);
     try {
       const token = await localforage.getItem("authToken");
       if (!token) {
@@ -129,46 +160,92 @@ const Inbox: React.FC = () => {
         return;
       }
 
-      // NOTE: This endpoint should fetch ALL conversation documents
-      // for the currently logged-in user.
-      const response = await axios.get<MessageData[]>(MESSAGE_API_ENDPOINT, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      let conversation: MessageData | null = null;
 
-      // --- MOCKING DISPLAY DATA for demonstration ---
-      const mockData: MessageData[] = response.data.map((conv) => ({
-        ...conv,
-        // Mocking display data for the Assistant
-        assistantName: `Assistant ${conv.assistantId.substring(0, 4)}`,
-        assistantAvatar: `https://i.pravatar.cc/60?img=${Math.floor(
-          Math.random() * 25
-        )}`,
-        isAssistantOnline: Math.random() > 0.5,
-      }));
-
-      setConversations(mockData);
-      if (mockData.length > 0 && !selectedConversation) {
-        setSelectedConversation(mockData[0]);
+      // If user has existing messages, use the first one
+      if (userData.messages && userData.messages.length > 0) {
+        conversation = userData.messages[0];
+      } else {
+        // If no existing conversation, create a new one
+        const createResponse = await axios.post<{
+          message: string;
+          conversation: MessageData;
+        }>(
+          CREATE_CONVERSATION_ENDPOINT,
+          {
+            assistantId: userData.assistant._id,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        conversation = createResponse.data.conversation;
       }
+
+      // Add display data for the conversation using the assistant from userData
+      const enhancedConversation = enhanceMessageData(conversation, userData);
+
+      setConversations([enhancedConversation]);
+      setSelectedConversation(enhancedConversation);
     } catch (err) {
       const axiosError = err as AxiosError;
-      console.error("Fetch failed:", axiosError);
-      toast.error("Failed to load conversations.");
+      console.error("Conversation fetch/create failed:", axiosError);
+      toast.error("Failed to load conversation.");
     } finally {
-      // **REMOVED:** setLoading(false); // This was setting a state that's never used
+      setLoadingConversation(false);
     }
   };
 
-  // **NEW:** Fetch user data first, then conversations
-  useEffect(() => {
-    fetchUserData();
-  }, [navigate]); // Depend on navigate mock/real hook
+  // Create a temporary conversation from userData (for UI purposes when no conversation exists)
+  const createTemporaryConversation = (): MessageData => {
+    if (!userData || !userData.assistant) {
+      throw new Error("No user data or assistant available");
+    }
+
+    const assistantDetails = getAssistantDetails(userData);
+
+    return {
+      _id: `temp-${Date.now()}`,
+      userId: userData._id,
+      assistantId: userData.assistant._id,
+      conversation: [],
+      title: "New Conversation",
+      lastActivityAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...assistantDetails,
+    };
+  };
 
   useEffect(() => {
-    if (!loadingUser) {
-      fetchConversations();
+    fetchUserData();
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!loadingUser && userData) {
+      // If user has an assistant but no messages, create a temporary conversation for UI
+      if (
+        userData.assistant &&
+        (!userData.messages || userData.messages.length === 0)
+      ) {
+        try {
+          const tempConversation = createTemporaryConversation();
+          setConversations([tempConversation]);
+          setSelectedConversation(tempConversation);
+        } catch (error) {
+          console.error("Failed to create temporary conversation:", error);
+        }
+      } else if (userData.messages && userData.messages.length > 0) {
+        // User has existing messages - enhance the first one with display data
+        const enhancedMessage = enhanceMessageData(
+          userData.messages[0],
+          userData
+        );
+        setConversations([enhancedMessage]);
+        setSelectedConversation(enhancedMessage);
+      }
     }
-  }, [loadingUser]); // Fetch conversations once user data loading is complete
+  }, [loadingUser, userData]);
 
   useEffect(() => {
     scrollToBottom();
@@ -177,14 +254,14 @@ const Inbox: React.FC = () => {
   // --- Send Message Handler ---
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim() === "" || !selectedConversation) return;
+    if (newMessage.trim() === "" || !selectedConversation || !userData) return;
 
     const messageContent = newMessage.trim();
-    setNewMessage(""); // Clear input immediately
+    setNewMessage("");
 
     const newEntry: ConversationEntry = {
-      _id: Date.now().toString(), // Mock ID for immediate display
-      role: "user", // The sender is the 'user'
+      _id: Date.now().toString(),
+      role: "user",
       content: messageContent,
       createdAt: new Date().toISOString(),
     };
@@ -202,7 +279,6 @@ const Inbox: React.FC = () => {
       )
     );
 
-    // Scroll to bottom immediately after optimistic update
     setTimeout(scrollToBottom, 0);
 
     try {
@@ -212,20 +288,55 @@ const Inbox: React.FC = () => {
         return;
       }
 
-      // API call to push the new message entry into the 'conversation' array
-      await axios.post(
-        `${MESSAGE_API_ENDPOINT}/${selectedConversation._id}`,
-        {
-          role: newEntry.role,
-          content: newEntry.content,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // If this is a temporary conversation, we need to create it first
+      if (selectedConversation._id.startsWith("temp-")) {
+        const createResponse = await axios.post<{ conversation: MessageData }>(
+          CREATE_CONVERSATION_ENDPOINT,
+          {
+            assistantId: userData.assistant._id,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        const createdConversation = createResponse.data.conversation;
+        const enhancedConversation = enhanceMessageData(
+          createdConversation,
+          userData
+        );
+
+        // Now send the actual message to the newly created conversation
+        await axios.post(
+          SEND_MESSAGE_ENDPOINT,
+          {
+            messageId: createdConversation._id,
+            role: newEntry.role,
+            content: newEntry.content,
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        // Update with the real conversation data
+        setSelectedConversation(enhancedConversation);
+        setConversations([enhancedConversation]);
+      } else {
+        // Existing conversation - just send the message
+        await axios.post(
+          SEND_MESSAGE_ENDPOINT,
+          {
+            messageId: selectedConversation._id,
+            role: newEntry.role,
+            content: newEntry.content,
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
     } catch (err) {
-      // Revert optimistic update on failure
       console.error("Message send failed:", err);
       toast.error("Failed to send message.");
 
+      // Revert optimistic update on failure
       setSelectedConversation((prev) =>
         prev
           ? {
@@ -244,19 +355,17 @@ const Inbox: React.FC = () => {
     }
   };
 
-  // **REMOVED:** The commented-out loading logic since we're not using loading state anymore
-
   return (
     <div className="flex h-screen bg-gray-100 font-inter">
-      {/* Sidebar (Clients List) */}
+      {/* Sidebar (Assistant List) */}
       <div
         className={`fixed lg:static top-0 left-0 h-full bg-white border-r border-gray-200 w-72 flex flex-col transition-transform duration-300 z-30
-				${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+        ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
       >
         <div className="p-5 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Conversations ({conversations.length})
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-900">My Assistant</h2>
           <button className="lg:hidden" onClick={() => setSidebarOpen(false)}>
             ✖
           </button>
@@ -266,9 +375,8 @@ const Inbox: React.FC = () => {
           <FaSearch className="text-gray-400 mr-2" />
           <input
             type="text"
-            placeholder="Search assistants..."
+            placeholder="Search..."
             className="flex-1 text-sm bg-transparent focus:outline-none"
-            // Filter logic would go here
           />
         </div>
 
@@ -281,9 +389,9 @@ const Inbox: React.FC = () => {
                 setSidebarOpen(false);
               }}
               className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all duration-150 hover:bg-gray-100
-								${
+                ${
                   selectedConversation?._id === conv._id
-                    ? `bg-gray-100 border-l-4 border-[${PRIMARY_COLOR}]`
+                    ? `bg-gray-100 border-l-4 ${PRIMARY_COLOR}`
                     : ""
                 }`}
             >
@@ -303,11 +411,29 @@ const Inbox: React.FC = () => {
                 </div>
                 <p className="text-xs text-gray-500 truncate">
                   {conv.conversation[conv.conversation.length - 1]?.content ||
-                    "No messages yet."}
+                    "Start a conversation..."}
                 </p>
               </div>
             </div>
           ))}
+
+          {/* Show loading state */}
+          {loadingConversation && (
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse"></div>
+              <div className="flex-1">
+                <div className="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+          )}
+
+          {/* Show if user has no assistant */}
+          {!loadingUser && userData && !userData.assistant && (
+            <div className="px-4 py-3 text-center text-gray-500">
+              <p>No assistant assigned</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -351,63 +477,64 @@ const Inbox: React.FC = () => {
             {/* Chat Body */}
             <div
               ref={chatBodyRef}
-              className="flex-1 overflow-y-auto px-6 py-5 space-y-5 bg-gray-50"
+              className="flex-1 overflow-y-auto px-2 py-5 space-y-5 bg-gray-50"
             >
-              {selectedConversation.conversation.map((msg) => (
-                <div
-                  key={msg._id}
-                  // KEY CHANGE: Check for 'user' to align right
-                  className={`flex items-end ${
-                    msg.role === "user" ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  {/* Avatar for the Assistant (Left Side) */}
-                  {msg.role === "assistant" && (
-                    <img
-                      src={selectedConversation.assistantAvatar}
-                      alt={selectedConversation.assistantName}
-                      className="w-8 h-8 rounded-full mr-3"
-                    />
-                  )}
-
-                  {/* Message Bubble */}
+              {selectedConversation.conversation.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                  <p className="text-lg mb-2">No messages yet</p>
+                  <p className="text-sm">
+                    Start a conversation with your assistant!
+                  </p>
+                </div>
+              ) : (
+                selectedConversation.conversation.map((msg) => (
                   <div
-                    className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm shadow-sm ${
-                      msg.role === "user" // KEY CHANGE: User message on the right with green background
-                        ? `${USER_MESSAGE_COLOR_CLASS} text-white rounded-br-none`
-                        : "bg-white text-gray-800 border border-gray-100 rounded-bl-none"
+                    key={msg._id}
+                    className={`flex items-end ${
+                      msg.role === "user" ? "justify-end" : "justify-start"
                     }`}
                   >
-                    {msg.content}
+                    {msg.role === "assistant" && (
+                      <img
+                        src={selectedConversation.assistantAvatar}
+                        alt={selectedConversation.assistantName}
+                        className="w-8 h-8 rounded-full mr-1"
+                      />
+                    )}
+
                     <div
-                      className={`text-xs mt-1 ${
+                      className={`max-w-[95%] px-4 py-3 rounded-2xl text-sm shadow-sm ${
                         msg.role === "user"
-                          ? "text-green-100 text-right"
-                          : "text-gray-500"
+                          ? `${USER_MESSAGE_COLOR_CLASS} text-white rounded-br-none`
+                          : "bg-white text-gray-800 border border-gray-100 rounded-bl-none"
                       }`}
                     >
-                      {/* Format the timestamp */}
-                      {new Date(msg.createdAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {msg.content}
+                      <div
+                        className={`text-xs mt-1 ${
+                          msg.role === "user"
+                            ? "text-green-100 text-right"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {new Date(msg.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* **UPDATED**: User Initials Avatar for the User (Right Side) */}
-                  {msg.role === "user" && (
-                    <div
-                      className={`w-8 h-8 rounded-full ml-3 bg-gray-200 flex items-center justify-center text-xs font-semibold`}
-                      style={{
-                        backgroundColor: PRIMARY_COLOR,
-                        color: "white",
-                      }} // Use primary color for user's own avatar
-                    >
-                      {getUserInitials(userData)}
-                    </div>
-                  )}
-                </div>
-              ))}
+                    {msg.role === "user" && (
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white ml-1`}
+                        style={{ backgroundColor: PRIMARY_COLOR }}
+                      >
+                        {getUserInitials(userData)}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Message Input */}
@@ -420,8 +547,6 @@ const Inbox: React.FC = () => {
                 placeholder={`Message ${selectedConversation.assistantName}...`}
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                // **FIXED:** Using bracket notation for dynamic Tailwind JIT color can be problematic.
-                // Replaced with a placeholder class or fixed color if necessary for consistency.
                 className="flex-1 border border-gray-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
               <button
@@ -435,9 +560,30 @@ const Inbox: React.FC = () => {
           </>
         ) : (
           <div className="flex items-center justify-center flex-1">
-            <p className="text-gray-500">
-              Select an assistant to start chatting.
-            </p>
+            {loadingConversation || loadingUser ? (
+              <div className="text-gray-500">Loading...</div>
+            ) : userData && !userData.assistant ? (
+              <div className="text-center">
+                <p className="text-gray-500 mb-4">
+                  No assistant assigned to your account.
+                </p>
+                <p className="text-sm text-gray-400">
+                  Please contact support to get assigned an assistant.
+                </p>
+              </div>
+            ) : (
+              <div className="text-center">
+                <p className="text-gray-500 mb-4">
+                  Start a conversation with your assistant
+                </p>
+                <button
+                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition"
+                  onClick={fetchOrCreateConversation}
+                >
+                  Start Conversation
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
