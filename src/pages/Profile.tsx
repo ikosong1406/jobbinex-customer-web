@@ -8,11 +8,10 @@ import {
   FaEyeSlash,
   FaSignOutAlt,
 } from "react-icons/fa";
-import { FiX } from "react-icons/fi";
 import axios, { AxiosError } from "axios";
 import localforage from "localforage";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import toast from "react-hot-toast";
+import { toast, Toaster } from "react-hot-toast";
 import Api from "../components/Api";
 
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
@@ -49,9 +48,9 @@ interface UserData {
   jobEmail?: string;
   jobPassword?: string;
   cv?: string;
-  preferredIndustries: string[];
-  preferredRoles: string[];
-  preferredLocations: string[];
+  preferredIndustries: string;
+  preferredRoles: string;
+  preferredLocations: string;
 }
 
 interface Plan {
@@ -73,60 +72,13 @@ const calculateProfileCompletion = (user: UserData): number => {
   if (user.jobPassword) completedFields++;
   if (user.cv) completedFields++;
   if (
-    user.preferredIndustries.length > 0 ||
-    user.preferredRoles.length > 0 ||
-    user.preferredLocations.length > 0
+    user.preferredIndustries ||
+    user.preferredRoles ||
+    user.preferredLocations
   )
     completedFields++;
   if (user.lastname) completedFields++;
   return Math.round((completedFields / totalFields) * 100);
-};
-
-const TagInput = ({ label, tags, setTags, placeholder }: any) => {
-  const [input, setInput] = useState("");
-
-  const handleAdd = (e: any) => {
-    e.preventDefault();
-    const trimmed = input.trim();
-    if (trimmed && !tags.includes(trimmed)) {
-      setTags([...tags, trimmed]);
-    }
-    setInput("");
-  };
-
-  const handleRemove = (tag: string) =>
-    setTags(tags.filter((t: string) => t !== tag));
-
-  return (
-    <div>
-      <label className="text-sm font-medium text-gray-700 mb-2 block">
-        {label}
-      </label>
-      <div className="flex flex-wrap items-center gap-2 border border-gray-200 bg-gray-50 rounded-lg p-2">
-        {tags.map((tag: string) => (
-          <span
-            key={tag}
-            className="flex items-center gap-1 px-2 py-1 rounded-full text-xs"
-            style={{
-              backgroundColor: `${PRIMARY_COLOR}1A`,
-              color: PRIMARY_COLOR,
-            }}
-          >
-            {tag}
-            <FiX className="cursor-pointer" onClick={() => handleRemove(tag)} />
-          </span>
-        ))}
-        <form onSubmit={handleAdd}>
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={placeholder}
-            className="outline-none text-sm bg-transparent p-1"
-          />
-        </form>
-      </div>
-    </div>
-  );
 };
 
 const Profile: React.FC = () => {
@@ -146,9 +98,9 @@ const Profile: React.FC = () => {
   const [jobPassword, setJobPassword] = useState("");
   const [cvLink, setCvLink] = useState("");
 
-  const [industries, setIndustries] = useState<string[]>([]);
-  const [roles, setRoles] = useState<string[]>([]);
-  const [locations, setLocations] = useState<string[]>([]);
+  const [industry, setIndustry] = useState("");
+  const [role, setRole] = useState("");
+  const [location, setLocation] = useState("");
 
   // Get user initials for profile picture
   const getUserInitials = () => {
@@ -181,7 +133,6 @@ const Profile: React.FC = () => {
       });
 
       setUserData(data);
-
       setFirstName(data.firstname);
       setLastName(data.lastname);
       setEmail(data.email);
@@ -190,14 +141,10 @@ const Profile: React.FC = () => {
       setJobPassword(data.jobPassword || "");
       setCvLink(data.cv || "");
 
-      // Ensure these are arrays and not undefined
-      setIndustries(
-        Array.isArray(data.preferredIndustries) ? data.preferredIndustries : []
-      );
-      setRoles(Array.isArray(data.preferredRoles) ? data.preferredRoles : []);
-      setLocations(
-        Array.isArray(data.preferredLocations) ? data.preferredLocations : []
-      );
+      // Set string values instead of arrays
+      setIndustry(data.preferredIndustries || "");
+      setRole(data.preferredRoles || "");
+      setLocation(data.preferredLocations || "");
     } catch (error) {
       const err = error as AxiosError;
       toast.error("Failed to load profile data.");
@@ -216,25 +163,30 @@ const Profile: React.FC = () => {
     const token = await localforage.getItem("authToken");
     if (!token) return;
 
-    // Ensure arrays are properly formatted
+    // Use the NEW field names that match your schema
     const updates = {
       jobEmail,
       jobPassword,
       cv: cvLink,
-      preferredIndustries: Array.isArray(industries) ? industries : [],
-      preferredRoles: Array.isArray(roles) ? roles : [],
-      preferredLocations: Array.isArray(locations) ? locations : [],
+      preferredIndustries: industry, // Map to schema field name
+      preferredRoles: role, // Map to schema field name
+      preferredLocations: location, // Map to schema field name
+      phonenumber: phone,
     };
 
     try {
-      await axios.patch(USER_UPDATE_ENDPOINT, updates, {
+      const response = await axios.patch(USER_UPDATE_ENDPOINT, updates, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       toast.success("Profile updated!");
-      setUserData((prev) => (prev ? { ...prev, ...updates } : prev));
-    } catch {
-      toast.error("Failed to save changes.");
+
+      // Update local state with the response data
+      if (response.data.user) {
+        setUserData(response.data.user);
+      }
+    } catch (error: any) {
+      console.error("Update error:", error.response?.data || error.message);
+      toast.error(error.response?.data?.message || "Failed to save changes.");
     } finally {
       setIsSaving(false);
     }
@@ -309,9 +261,13 @@ const Profile: React.FC = () => {
       duration: "/Monthly",
       description: "Perfect for individuals just starting.",
       features: [
-        "Up to 50+ job applications",
-        "Status tracking",
-        "Weekly summary",
+        "Up to 40+ job applications",
+        "Application status tracking",
+        "Weekly performance summary",
+        // Added features from the message
+        "Professionally Written CV & Cover Letter", // Core document creation
+        "Human-Written Guarantee (No AI)", // Quality assurance
+        "ATS Optimization for all documents",
       ],
       discount: 0,
       highlight: false,
@@ -323,9 +279,15 @@ const Profile: React.FC = () => {
       duration: "/Monthly",
       description: "Ideal for steady job seekers.",
       features: [
-        "Everything in Starter",
-        "Up to 100+ applications",
-        "Priority review",
+        "Everything in Starter, plus:",
+        "Up to 100+ job applications",
+        "Priority application review",
+        "Custom CV & cover letter optimization",
+        "Weekly insights and optimization tips",
+        // Added features from the message
+        "LinkedIn Profile Refinement & Optimization", // Hands-on service
+        "Targeted Job Research Assistance", // Hands-on service
+        "Assisted Application Submissions", // Hands-on service
       ],
       discount: 20,
       highlight: true,
@@ -337,9 +299,15 @@ const Profile: React.FC = () => {
       duration: "/Monthly",
       description: "For executives & power users.",
       features: [
-        "Everything in Pro",
-        "Unlimited applications",
-        "Detailed reports",
+        "Everything in Professional, plus:",
+        "Unlimited job applications",
+        "Detailed progress reports",
+        "Dedicated career strategist session",
+        "Full application management",
+        // Added features from the message
+        "Priority Service & Faster Turnaround", // Priority service
+        "One-to-One Interview Coaching Session", // High-level support
+        "Personal Brand Strategy & Crafting", // High-level support
       ],
       discount: 50,
       highlight: false,
@@ -395,6 +363,7 @@ const Profile: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white py-10 px-4">
+      <Toaster />
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col md:flex-row justify-between items-center">
@@ -498,24 +467,42 @@ const Profile: React.FC = () => {
           <h2 className="text-lg font-semibold">Job Preferences</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <TagInput
-              label="Preferred Industries"
-              tags={industries}
-              setTags={setIndustries}
-              placeholder="Add industry..."
-            />
-            <TagInput
-              label="Preferred Roles"
-              tags={roles}
-              setTags={setRoles}
-              placeholder="Add role..."
-            />
-            <TagInput
-              label="Preferred Locations"
-              tags={locations}
-              setTags={setLocations}
-              placeholder="Add location..."
-            />
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Preferred Industry
+              </label>
+              <input
+                type="text"
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                placeholder="e.g., Technology, Healthcare, Finance"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-500"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Preferred Role
+              </label>
+              <input
+                type="text"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                placeholder="e.g., Software Engineer, Product Manager"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-500"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Preferred Location
+              </label>
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g., London, Remote, New York"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-500"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end pt-4">
