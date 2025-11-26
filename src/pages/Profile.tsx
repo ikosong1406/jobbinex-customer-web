@@ -200,7 +200,6 @@ const Profile: React.FC = () => {
     }
 
     try {
-      toast.loading("Redirecting to checkout...");
       const { data } = await axios.post(
         CHECKOUT_ENDPOINT,
         { planName },
