@@ -496,7 +496,7 @@ const Home: React.FC = () => {
                   Activate Your Job Assistant
                 </h3>
                 <p className="text-gray-600 mb-4">
-                  Subscribe to a plan to unlock your AI assistant and automate
+                  Subscribe to a plan to unlock your assistant and automate
                   your job applications.
                 </p>
                 <button
