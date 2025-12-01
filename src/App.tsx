@@ -14,6 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
 import Inbox from "./pages/Inbox";
 import Profile from "./pages/Profile";
+import Activate from "./pages/Activate";
 
 // --- Protected Route Component ---
 /**
@@ -72,6 +73,7 @@ export default function App() {
           <Route path="jobs" element={<Jobs />} />
           <Route path="inbox" element={<Inbox />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="activate" element={<Activate />} />
         </Route>
 
         {/* Fallback for any protected route that doesn't match above */}
