@@ -285,7 +285,7 @@ const Home: React.FC = () => {
 
   // Handle Assistant Subscription Redirect
   const handleSubscribe = () => {
-    navigate("/customer/plan");
+    navigate("/customer/profile");
   };
 
   // --- Loading State Render ---
@@ -496,8 +496,8 @@ const Home: React.FC = () => {
                   Activate Your Job Assistant
                 </h3>
                 <p className="text-gray-600 mb-4">
-                  Subscribe to a plan to unlock your assistant and automate
-                  your job applications.
+                  Subscribe to a plan to unlock your assistant and automate your
+                  job applications.
                 </p>
                 <button
                   onClick={handleSubscribe}

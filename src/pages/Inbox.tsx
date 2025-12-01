@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FaPaperPlane, FaBars, FaSearch } from "react-icons/fa";
+import {
+  FaPaperPlane,
+  FaBars,
+  FaSearch,
+  FaUserSlash,
+  FaHeadset,
+} from "react-icons/fa";
 import axios, { AxiosError } from "axios";
 import localforage from "localforage";
 import toast from "react-hot-toast";
@@ -43,8 +49,8 @@ interface UserData {
     firstname: string;
     lastname: string;
     status: "online" | "offline";
-  };
-  messages: MessageData[]; // Array of message objects
+  } | null;
+  messages: MessageData[];
   jobs: any[];
   notifications: any[];
   preferredIndustries: string;
@@ -58,6 +64,51 @@ const SEND_MESSAGE_ENDPOINT = `${Api}/customer/sendMessage`;
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
 const CREATE_CONVERSATION_ENDPOINT = `${Api}/customer/createConv`;
 
+// --- Fallback Component for No Assistant ---
+const NoAssistantFallback: React.FC = () => {
+  return (
+    <div className="flex flex-col items-center justify-center h-full bg-gray-50 p-8 text-center">
+      <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full">
+        <div className="flex justify-center mb-6">
+          <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center">
+            <FaUserSlash className="text-yellow-600 text-3xl" />
+          </div>
+        </div>
+
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          No Assistant Assigned
+        </h2>
+
+        <p className="text-gray-600 mb-6">
+          Unlock your personalized career assistant by subscribing! Get tailored
+          job search support, interview preparation, and career guidance with
+          our premium subscription plans.
+        </p>
+
+        <div className="space-y-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full bg-green-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-600 transition duration-200"
+          >
+            Check Again
+          </button>
+
+          <button
+            onClick={() => (window.location.href = "/customer/profile")}
+            className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50 transition duration-200"
+          >
+            Subscribe Now
+          </button>
+        </div>
+
+        <p className="text-xs text-gray-500 mt-4">
+          Usually assigned within 24 hours of subscription.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 const Inbox: React.FC = () => {
   const navigate = useNavigate();
   const [conversations, setConversations] = useState<MessageData[]>([]);
@@ -68,6 +119,7 @@ const Inbox: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingConversation, setLoadingConversation] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   const chatBodyRef = useRef<HTMLDivElement>(null);
 
@@ -84,8 +136,17 @@ const Inbox: React.FC = () => {
     return `${firstInitial}${lastInitial}`.substring(0, 2) || "U";
   };
 
-  // Helper function to get assistant details from userData
+  // Helper function to get assistant details from userData - with null check
   const getAssistantDetails = (userData: UserData) => {
+    if (!userData.assistant) {
+      return {
+        assistantName: "Unassigned Assistant",
+        assistantAvatar:
+          "https://ui-avatars.com/api/?name=Assistant&background=6b7280&color=fff",
+        isAssistantOnline: false,
+      };
+    }
+
     return {
       assistantName: `${userData.assistant.firstname} ${userData.assistant.lastname}`,
       assistantAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
@@ -111,6 +172,7 @@ const Inbox: React.FC = () => {
 
   const fetchUserData = async () => {
     setLoadingUser(true);
+    setDataLoaded(false);
     try {
       const token = await localforage.getItem("authToken");
 
@@ -127,9 +189,11 @@ const Inbox: React.FC = () => {
       });
 
       setUserData(response.data);
+      setDataLoaded(true);
     } catch (error) {
       const axiosError = error as AxiosError;
       console.error("User data fetch failed:", axiosError);
+      setDataLoaded(true);
 
       if (
         axiosError.response?.status === 401 ||
@@ -147,7 +211,12 @@ const Inbox: React.FC = () => {
   };
 
   const fetchOrCreateConversation = async () => {
-    if (!userData || !userData.assistant) {
+    if (!userData) {
+      toast.error("User data not loaded.");
+      return;
+    }
+
+    if (!userData.assistant) {
       toast.error("No assistant assigned to your account.");
       return;
     }
@@ -197,17 +266,13 @@ const Inbox: React.FC = () => {
   };
 
   // Create a temporary conversation from userData (for UI purposes when no conversation exists)
-  const createTemporaryConversation = (): MessageData => {
-    if (!userData || !userData.assistant) {
-      throw new Error("No user data or assistant available");
-    }
-
+  const createTemporaryConversation = (userData: UserData): MessageData => {
     const assistantDetails = getAssistantDetails(userData);
 
     return {
       _id: `temp-${Date.now()}`,
       userId: userData._id,
-      assistantId: userData.assistant._id,
+      assistantId: userData.assistant?._id || "unassigned",
       conversation: [],
       title: "New Conversation",
       lastActivityAt: new Date().toISOString(),
@@ -217,35 +282,41 @@ const Inbox: React.FC = () => {
     };
   };
 
-  useEffect(() => {
-    fetchUserData();
-  }, [navigate]);
+  // Initialize conversations after user data is loaded
+  const initializeConversations = (userData: UserData) => {
+    // If user has an assistant but no messages, create a temporary conversation for UI
+    if (
+      userData.assistant &&
+      (!userData.messages || userData.messages.length === 0)
+    ) {
+      try {
+        const tempConversation = createTemporaryConversation(userData);
+        setConversations([tempConversation]);
+        setSelectedConversation(tempConversation);
+      } catch (error) {
+        console.error("Failed to create temporary conversation:", error);
+      }
+    } else if (userData.messages && userData.messages.length > 0) {
+      // User has existing messages - enhance the first one with display data
+      const enhancedMessage = enhanceMessageData(
+        userData.messages[0],
+        userData
+      );
+      setConversations([enhancedMessage]);
+      setSelectedConversation(enhancedMessage);
+    }
+    // If no assistant and no messages, the fallback will handle it
+  };
 
   useEffect(() => {
-    if (!loadingUser && userData) {
-      // If user has an assistant but no messages, create a temporary conversation for UI
-      if (
-        userData.assistant &&
-        (!userData.messages || userData.messages.length === 0)
-      ) {
-        try {
-          const tempConversation = createTemporaryConversation();
-          setConversations([tempConversation]);
-          setSelectedConversation(tempConversation);
-        } catch (error) {
-          console.error("Failed to create temporary conversation:", error);
-        }
-      } else if (userData.messages && userData.messages.length > 0) {
-        // User has existing messages - enhance the first one with display data
-        const enhancedMessage = enhanceMessageData(
-          userData.messages[0],
-          userData
-        );
-        setConversations([enhancedMessage]);
-        setSelectedConversation(enhancedMessage);
-      }
+    fetchUserData();
+  }, []);
+
+  useEffect(() => {
+    if (!loadingUser && userData && dataLoaded) {
+      initializeConversations(userData);
     }
-  }, [loadingUser, userData]);
+  }, [loadingUser, userData, dataLoaded]);
 
   useEffect(() => {
     scrollToBottom();
@@ -254,7 +325,18 @@ const Inbox: React.FC = () => {
   // --- Send Message Handler ---
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim() === "" || !selectedConversation || !userData) return;
+    if (newMessage.trim() === "" || !selectedConversation || !userData) {
+      if (!userData?.assistant) {
+        toast.error("No assistant assigned to send messages.");
+      }
+      return;
+    }
+
+    // Don't allow sending messages if no real assistant
+    if (!userData.assistant) {
+      toast.error("No assistant assigned to send messages.");
+      return;
+    }
 
     const messageContent = newMessage.trim();
     setNewMessage("");
@@ -355,91 +437,104 @@ const Inbox: React.FC = () => {
     }
   };
 
+  // Check if user has no assistant
+  const hasNoAssistant = !loadingUser && userData && !userData.assistant;
+  const hasAssistant = !loadingUser && userData && userData.assistant;
+  const showStartConversation =
+    hasAssistant && !selectedConversation && !loadingConversation;
+
   return (
     <div className="flex h-screen bg-gray-100 font-inter">
       {/* Sidebar (Assistant List) */}
-      <div
-        className={`fixed lg:static top-0 left-0 h-full bg-white border-r border-gray-200 w-72 flex flex-col transition-transform duration-300 z-30
-        ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
-      >
-        <div className="p-5 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">My Assistant</h2>
-          <button className="lg:hidden" onClick={() => setSidebarOpen(false)}>
-            ✖
-          </button>
-        </div>
+      {hasAssistant && (
+        <div
+          className={`fixed lg:static top-0 left-0 h-full bg-white border-r border-gray-200 w-72 flex flex-col transition-transform duration-300 z-30
+          ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          }`}
+        >
+          <div className="p-5 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">
+              My Assistant
+            </h2>
+            <button className="lg:hidden" onClick={() => setSidebarOpen(false)}>
+              ✖
+            </button>
+          </div>
 
-        <div className="p-3 flex items-center bg-gray-50 mx-3 rounded-lg">
-          <FaSearch className="text-gray-400 mr-2" />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="flex-1 text-sm bg-transparent focus:outline-none"
-          />
-        </div>
+          <div className="p-3 flex items-center bg-gray-50 mx-3 rounded-lg">
+            <FaSearch className="text-gray-400 mr-2" />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="flex-1 text-sm bg-transparent focus:outline-none"
+            />
+          </div>
 
-        <div className="flex-1 overflow-y-auto mt-2">
-          {conversations.map((conv) => (
-            <div
-              key={conv._id}
-              onClick={() => {
-                setSelectedConversation(conv);
-                setSidebarOpen(false);
-              }}
-              className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all duration-150 hover:bg-gray-100
-                ${
-                  selectedConversation?._id === conv._id
-                    ? `bg-gray-100 border-l-4 ${PRIMARY_COLOR}`
-                    : ""
-                }`}
-            >
-              <img
-                src={conv.assistantAvatar}
-                alt={conv.assistantName}
-                className="w-10 h-10 rounded-full object-cover"
-              />
-              <div className="flex-1">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-medium text-gray-900">
-                    {conv.assistantName}
-                  </h3>
-                  {conv.isAssistantOnline && (
-                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                  )}
+          <div className="flex-1 overflow-y-auto mt-2">
+            {conversations.map((conv) => (
+              <div
+                key={conv._id}
+                onClick={() => {
+                  setSelectedConversation(conv);
+                  setSidebarOpen(false);
+                }}
+                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all duration-150 hover:bg-gray-100
+                  ${
+                    selectedConversation?._id === conv._id
+                      ? `bg-gray-100 border-l-4 ${PRIMARY_COLOR}`
+                      : ""
+                  }`}
+              >
+                <img
+                  src={conv.assistantAvatar}
+                  alt={conv.assistantName}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+                <div className="flex-1">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-sm font-medium text-gray-900">
+                      {conv.assistantName}
+                    </h3>
+                    {conv.isAssistantOnline && (
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">
+                    {conv.conversation[conv.conversation.length - 1]?.content ||
+                      "Start a conversation..."}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 truncate">
-                  {conv.conversation[conv.conversation.length - 1]?.content ||
-                    "Start a conversation..."}
-                </p>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {/* Show loading state */}
-          {loadingConversation && (
-            <div className="flex items-center gap-3 px-4 py-3">
-              <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse"></div>
-              <div className="flex-1">
-                <div className="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded animate-pulse"></div>
+            {/* Show loading state */}
+            {loadingConversation && (
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse"></div>
+                <div className="flex-1">
+                  <div className="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded animate-pulse"></div>
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Show if user has no assistant */}
-          {!loadingUser && userData && !userData.assistant && (
-            <div className="px-4 py-3 text-center text-gray-500">
-              <p>No assistant assigned</p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Chat Panel */}
-      <div className="flex-1 flex flex-col relative">
-        {selectedConversation ? (
+      <div
+        className={`flex-1 flex flex-col relative ${
+          hasNoAssistant ? "w-full" : ""
+        }`}
+      >
+        {loadingUser ? (
+          <div className="flex items-center justify-center flex-1">
+            <div className="text-gray-500">Loading your inbox...</div>
+          </div>
+        ) : hasNoAssistant ? (
+          <NoAssistantFallback />
+        ) : selectedConversation ? (
           <>
             {/* Header */}
             <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
@@ -558,32 +653,23 @@ const Inbox: React.FC = () => {
               </button>
             </form>
           </>
+        ) : showStartConversation ? (
+          <div className="flex items-center justify-center flex-1">
+            <div className="text-center">
+              <p className="text-gray-500 mb-4">
+                Start a conversation with your assistant
+              </p>
+              <button
+                className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition"
+                onClick={fetchOrCreateConversation}
+              >
+                Start Conversation
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="flex items-center justify-center flex-1">
-            {loadingConversation || loadingUser ? (
-              <div className="text-gray-500">Loading...</div>
-            ) : userData && !userData.assistant ? (
-              <div className="text-center">
-                <p className="text-gray-500 mb-4">
-                  No assistant assigned to your account.
-                </p>
-                <p className="text-sm text-gray-400">
-                  Please contact support to get assigned an assistant.
-                </p>
-              </div>
-            ) : (
-              <div className="text-center">
-                <p className="text-gray-500 mb-4">
-                  Start a conversation with your assistant
-                </p>
-                <button
-                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition"
-                  onClick={fetchOrCreateConversation}
-                >
-                  Start Conversation
-                </button>
-              </div>
-            )}
+            <div className="text-gray-500">Setting up your inbox...</div>
           </div>
         )}
       </div>
