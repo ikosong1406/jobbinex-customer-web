@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  FaPaperPlane,
-  FaBars,
-  FaSearch,
-  FaUserSlash,
-  FaHeadset,
-} from "react-icons/fa";
+import { FaPaperPlane, FaBars, FaSearch, FaUserSlash } from "react-icons/fa";
 import axios, { AxiosError } from "axios";
 import localforage from "localforage";
 import toast from "react-hot-toast";
