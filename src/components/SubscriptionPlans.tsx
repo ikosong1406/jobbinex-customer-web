@@ -88,7 +88,7 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
     }
 
     setIsProcessing(true);
-    const token = await localforage.getItem("authToken");
+    const token = await localforage.getItem<string>("authToken");
 
     if (!token) {
       toast.error("Authentication failed. Please log in again.");
