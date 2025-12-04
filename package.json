@@ -24,6 +24,7 @@
     "react-slick": "^0.31.0",
     "recharts": "^3.3.0",
     "slick-carousel": "^1.8.1",
+    "stripe": "^20.0.0",
     "tailwindcss": "^4.1.17"
   },
   "devDependencies": {

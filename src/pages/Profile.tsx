@@ -3,7 +3,6 @@ import {
   FaEnvelope,
   FaPhone,
   FaLink,
-  FaCheckCircle,
   FaEye,
   FaEyeSlash,
   FaSignOutAlt,
@@ -13,10 +12,10 @@ import localforage from "localforage";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast, Toaster } from "react-hot-toast";
 import Api from "../components/Api";
+import SubscriptionPlans from "../components/SubscriptionPlans"; // Add this import
 
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
 const USER_UPDATE_ENDPOINT = `${Api}/customer/profile`;
-const CHECKOUT_ENDPOINT = `${Api}/customer/checkout`;
 const SUBSCRIPTION_ENDPOINT = `${Api}/customer/subscribe`;
 const PRIMARY_COLOR = "#4eaa3c";
 
@@ -189,29 +188,6 @@ const Profile: React.FC = () => {
       toast.error(error.response?.data?.message || "Failed to save changes.");
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleStripeCheckout = async (planName: string) => {
-    const token = await localforage.getItem("authToken");
-    if (!token) {
-      toast.error("Authentication failed.");
-      return;
-    }
-
-    try {
-      const { data } = await axios.post(
-        CHECKOUT_ENDPOINT,
-        { planName },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (!data.redirectUrl) throw new Error("Missing redirect URL.");
-
-      window.location.href = data.redirectUrl;
-    } catch (error: any) {
-      toast.dismiss();
-      toast.error(error.message || "Checkout error.");
     }
   };
 
@@ -523,80 +499,12 @@ const Profile: React.FC = () => {
               ? `Your Active Plan: ${currentPlanName}`
               : "Available Monthly Plans"}
           </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {plans.map((plan) => {
-              const isActivePlan = plan.name === currentPlanName;
-
-              return (
-                <div
-                  key={plan.name}
-                  className={`rounded-2xl p-5 border flex flex-col justify-between ${
-                    plan.highlight
-                      ? "border-4 border-yellow-500 shadow-lg"
-                      : "border-gray-300"
-                  } ${
-                    isActivePlan ? "bg-green-50 border-green-500" : "bg-white"
-                  }`}
-                >
-                  <div>
-                    {plan.highlight && (
-                      <span className="text-xs font-bold text-white bg-yellow-500 px-3 py-1 rounded-full absolute -mt-8 -ml-5">
-                        MOST POPULAR
-                      </span>
-                    )}
-
-                    <h3 className="font-semibold text-2xl">{plan.name}</h3>
-
-                    <div className="my-2">
-                      <span className="text-3xl font-extrabold mr-1">
-                        £{plan.price}
-                      </span>
-                      {plan.oldPrice && (
-                        <span className="text-sm text-gray-500 line-through">
-                          £{plan.oldPrice}
-                        </span>
-                      )}
-                      <span className="text-sm text-gray-500">
-                        {plan.duration}
-                      </span>
-                    </div>
-
-                    <p className="text-sm text-gray-600 mb-3">
-                      {plan.description}
-                    </p>
-
-                    <ul className="text-sm text-gray-700 space-y-1">
-                      {plan.features.map((feat) => (
-                        <li key={feat} className="flex items-start">
-                          <FaCheckCircle className="text-green-500 mt-1 mr-2" />
-                          {feat}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {isActivePlan ? (
-                    <button
-                      disabled
-                      className="mt-5 px-4 py-2 bg-green-500 text-white rounded-lg"
-                    >
-                      <FaCheckCircle className="inline mr-2" />
-                      Active Plan
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleStripeCheckout(plan.name)}
-                      className="mt-5 px-4 py-2 text-white rounded-lg hover:opacity-90"
-                      style={{ backgroundColor: PRIMARY_COLOR }}
-                    >
-                      Subscribe Now
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <SubscriptionPlans
+            plans={plans}
+            currentPlanName={currentPlanName}
+            userDetails={userData || undefined}
+            onSubscriptionSuccess={fetchUserData}
+          />
         </div>
 
         {/* Mobile Logout Button - Bottom of Screen */}
