@@ -290,6 +290,7 @@ const Profile: React.FC = () => {
   ];
 
   const profilePercent = userData ? calculateProfileCompletion(userData) : 0;
+  // Get plan details
   const hasActivePlan = !!userData?.plan?.name;
   const currentPlanName = userData?.plan?.name;
 
@@ -308,25 +309,27 @@ const Profile: React.FC = () => {
   // -------------------------------------------
 
   const personalFields: ProfileField[] = [
-    { label: "First Name", value: firstName },
-    { label: "Last Name", value: lastName },
+    { label: "First Name", value: firstName, setState: setFirstName },
+    { label: "Last Name", value: lastName, setState: setLastName },
     { label: "Primary Email", value: email, icon: FaEnvelope },
     {
       label: "Job Hunting Email",
       value: jobEmail,
       icon: FaEnvelope,
       setState: setJobEmail,
+      placeholder: "Your other email for applications",
     },
     {
       label: "Job Password",
       value: jobPassword,
       type: "password",
-      icon: FaEnvelope,
+      icon: FaEnvelope, // Icon might not be the best fit for password
       setState: setJobPassword,
       showPassword: showJobPassword,
       setShowPassword: setShowJobPassword,
+      placeholder: "Password for your job hunting account",
     },
-    { label: "Phone", value: phone, icon: FaPhone },
+    { label: "Phone", value: phone, icon: FaPhone, setState: setPhone },
     {
       label: "CV Link",
       value: cvLink,
@@ -355,7 +358,9 @@ const Profile: React.FC = () => {
               </h1>
               <p className="text-sm text-gray-500">
                 {hasActivePlan
-                  ? `Active Plan: ${currentPlanName}`
+                  ? `Active Plan: ${currentPlanName} (Expires: ${new Date(
+                      userData!.plan!.expiresAt
+                    ).toLocaleDateString()})`
                   : "No Active Subscription"}
               </p>
             </div>
@@ -397,6 +402,7 @@ const Profile: React.FC = () => {
                         : field.type || "text"
                     }
                     value={field.value}
+                    // Only allow editing if setState is provided
                     readOnly={!field.setState}
                     onChange={
                       field.setState
@@ -405,7 +411,7 @@ const Profile: React.FC = () => {
                     }
                     placeholder={field.placeholder}
                     className={`flex-1 outline-none text-sm ${
-                      field.setState ? "" : "bg-gray-50 text-gray-500"
+                      !field.setState ? "bg-gray-50 text-gray-500" : ""
                     }`}
                   />
 
@@ -492,20 +498,40 @@ const Profile: React.FC = () => {
           </div>
         </div>
 
-        {/* Subscription Plans */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold mb-6">
-            {hasActivePlan
-              ? `Your Active Plan: ${currentPlanName}`
-              : "Available Monthly Plans"}
-          </h2>
-          <SubscriptionPlans
-            plans={plans}
-            currentPlanName={currentPlanName}
-            userDetails={userData || undefined}
-            onSubscriptionSuccess={fetchUserData}
-          />
-        </div>
+        {/* Subscription Plans - RENDER ONLY IF NO ACTIVE PLAN */}
+        {!hasActivePlan && (
+          <div className="bg-white rounded-2xl shadow-sm p-6">
+            <h2 className="text-lg font-semibold mb-6">
+              Available Monthly Plans
+            </h2>
+            <SubscriptionPlans
+              plans={plans}
+              currentPlanName={currentPlanName}
+              userDetails={userData || undefined}
+              onSubscriptionSuccess={fetchUserData}
+            />
+          </div>
+        )}
+
+        {/* Active Plan Summary - RENDER ONLY IF ACTIVE PLAN */}
+        {hasActivePlan && (
+          <div className="bg-white rounded-2xl shadow-sm p-6 border-l-4 border-green-500">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
+              Active Subscription Details
+            </h2>
+            <p className="text-base text-gray-700">
+              You are currently on the **{currentPlanName}** plan.
+            </p>
+            <p className="text-sm text-gray-500">
+              Your plan expires on: **
+              {new Date(userData!.plan!.expiresAt).toLocaleDateString()}**
+            </p>
+            <p className="mt-4 text-sm text-gray-500">
+              Contact support if you need to manage or upgrade your active
+              subscription.
+            </p>
+          </div>
+        )}
 
         {/* Mobile Logout Button - Bottom of Screen */}
         <div className="md:hidden p-6">

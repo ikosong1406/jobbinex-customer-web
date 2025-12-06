@@ -1,5 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
-import { FaPaperPlane, FaBars, FaSearch, FaUserSlash } from "react-icons/fa";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  FaPaperPlane,
+  FaBars,
+  FaSearch,
+  FaUserSlash,
+  FaSync,
+} from "react-icons/fa";
 import axios, { AxiosError } from "axios";
 import localforage from "localforage";
 import toast from "react-hot-toast";
@@ -57,6 +63,7 @@ const PRIMARY_COLOR = USER_MESSAGE_COLOR_CLASS;
 const SEND_MESSAGE_ENDPOINT = `${Api}/customer/sendMessage`;
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
 const CREATE_CONVERSATION_ENDPOINT = `${Api}/customer/createConv`;
+const GET_MESSAGE_ENDPOINT = `${Api}/customer/messages`; // Add this endpoint for fetching messages
 
 // --- Fallback Component for No Assistant ---
 const NoAssistantFallback: React.FC = () => {
@@ -114,7 +121,11 @@ const Inbox: React.FC = () => {
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
+  // Use useRef for polling interval instead of useState
+  const pollingIntervalRef = useRef<number | null>(null);
   const chatBodyRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -161,6 +172,90 @@ const Inbox: React.FC = () => {
       ...assistantDetails,
     };
   };
+
+  // --- Refresh Logic ---
+
+  const refreshMessages = useCallback(
+    async (conversationId?: string) => {
+      if (!userData || !userData.assistant || isRefreshing) {
+        return;
+      }
+
+      setIsRefreshing(true);
+      try {
+        const token = await localforage.getItem("authToken");
+        if (!token) return;
+
+        // Fetch all user messages
+        const response = await axios.get<{ messages: MessageData[] }>(
+          GET_MESSAGE_ENDPOINT,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (response.data.messages && response.data.messages.length > 0) {
+          const enhancedMessages = response.data.messages.map((msg) =>
+            enhanceMessageData(msg, userData)
+          );
+
+          setConversations(enhancedMessages);
+
+          // If we have a selected conversation, update it
+          if (selectedConversation) {
+            const currentConv = enhancedMessages.find(
+              (conv) => conv._id === selectedConversation._id
+            );
+            if (currentConv) {
+              setSelectedConversation(currentConv);
+            }
+          } else if (conversationId) {
+            // If we just created a conversation, select it
+            const newConv = enhancedMessages.find(
+              (conv) => conv._id === conversationId
+            );
+            if (newConv) {
+              setSelectedConversation(newConv);
+            }
+          } else if (enhancedMessages.length > 0) {
+            // Select the first conversation by default
+            setSelectedConversation(enhancedMessages[0]);
+          }
+        }
+
+        setLastRefreshTime(new Date());
+      } catch (error) {
+        console.error("Failed to refresh messages:", error);
+        // Don't stop polling on error, just log it
+      } finally {
+        setIsRefreshing(false);
+      }
+    },
+    [userData, selectedConversation, isRefreshing]
+  );
+
+  // Start polling for new messages every 2 seconds
+  const startPolling = useCallback(() => {
+    // Clear existing interval
+    if (pollingIntervalRef.current) {
+      window.clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    pollingIntervalRef.current = window.setInterval(() => {
+      if (userData?.assistant && !isRefreshing) {
+        refreshMessages();
+      }
+    }, 2000); // Poll every 2 seconds
+  }, [userData, isRefreshing, refreshMessages]);
+
+  // Stop polling
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      window.clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
 
   // --- Data Fetching ---
 
@@ -250,6 +345,9 @@ const Inbox: React.FC = () => {
 
       setConversations([enhancedConversation]);
       setSelectedConversation(enhancedConversation);
+
+      // Refresh messages to get the latest
+      refreshMessages(enhancedConversation._id);
     } catch (err) {
       const axiosError = err as AxiosError;
       console.error("Conversation fetch/create failed:", axiosError);
@@ -302,16 +400,39 @@ const Inbox: React.FC = () => {
     // If no assistant and no messages, the fallback will handle it
   };
 
+  // Initial data fetch
   useEffect(() => {
     fetchUserData();
   }, []);
 
+  // Initialize conversations when user data loads
   useEffect(() => {
     if (!loadingUser && userData && dataLoaded) {
       initializeConversations(userData);
     }
   }, [loadingUser, userData, dataLoaded]);
 
+  // Start polling when a conversation is selected and user has assistant
+  useEffect(() => {
+    if (selectedConversation && userData?.assistant) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+
+    return () => {
+      stopPolling();
+    };
+  }, [selectedConversation, userData, startPolling, stopPolling]);
+
+  // Clean up polling interval on component unmount
+  useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, [stopPolling]);
+
+  // Scroll to bottom when conversation updates
   useEffect(() => {
     scrollToBottom();
   }, [selectedConversation]);
@@ -364,6 +485,8 @@ const Inbox: React.FC = () => {
         return;
       }
 
+      let conversationId = selectedConversation._id;
+
       // If this is a temporary conversation, we need to create it first
       if (selectedConversation._id.startsWith("temp-")) {
         const createResponse = await axios.post<{ conversation: MessageData }>(
@@ -377,36 +500,37 @@ const Inbox: React.FC = () => {
         );
 
         const createdConversation = createResponse.data.conversation;
-        const enhancedConversation = enhanceMessageData(
-          createdConversation,
-          userData
-        );
+        conversationId = createdConversation._id;
 
         // Now send the actual message to the newly created conversation
         await axios.post(
           SEND_MESSAGE_ENDPOINT,
           {
-            messageId: createdConversation._id,
+            messageId: conversationId,
             role: newEntry.role,
             content: newEntry.content,
           },
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
-        // Update with the real conversation data
-        setSelectedConversation(enhancedConversation);
-        setConversations([enhancedConversation]);
+        // Refresh to get the actual conversation data
+        refreshMessages(conversationId);
       } else {
         // Existing conversation - just send the message
         await axios.post(
           SEND_MESSAGE_ENDPOINT,
           {
-            messageId: selectedConversation._id,
+            messageId: conversationId,
             role: newEntry.role,
             content: newEntry.content,
           },
           { headers: { Authorization: `Bearer ${token}` } }
         );
+
+        // Refresh after sending message to get any immediate response
+        setTimeout(() => {
+          refreshMessages(conversationId);
+        }, 500);
       }
     } catch (err) {
       console.error("Message send failed:", err);
@@ -431,6 +555,13 @@ const Inbox: React.FC = () => {
     }
   };
 
+  // Manual refresh button handler
+  const handleManualRefresh = () => {
+    if (!isRefreshing) {
+      refreshMessages();
+    }
+  };
+
   // Check if user has no assistant
   const hasNoAssistant = !loadingUser && userData && !userData.assistant;
   const hasAssistant = !loadingUser && userData && userData.assistant;
@@ -451,9 +582,22 @@ const Inbox: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-900">
               My Assistant
             </h2>
-            <button className="lg:hidden" onClick={() => setSidebarOpen(false)}>
-              ✖
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="p-2 text-gray-500 hover:text-green-600 transition disabled:opacity-50"
+                title="Refresh messages"
+              >
+                <FaSync className={`${isRefreshing ? "animate-spin" : ""}`} />
+              </button>
+              <button
+                className="lg:hidden"
+                onClick={() => setSidebarOpen(false)}
+              >
+                ✖
+              </button>
+            </div>
           </div>
 
           <div className="p-3 flex items-center bg-gray-50 mx-3 rounded-lg">
@@ -490,9 +634,11 @@ const Inbox: React.FC = () => {
                     <h3 className="text-sm font-medium text-gray-900">
                       {conv.assistantName}
                     </h3>
-                    {conv.isAssistantOnline && (
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {conv.isAssistantOnline && (
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                      )}
+                    </div>
                   </div>
                   <p className="text-xs text-gray-500 truncate">
                     {conv.conversation[conv.conversation.length - 1]?.content ||
@@ -513,6 +659,17 @@ const Inbox: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Last refresh time indicator */}
+          {lastRefreshTime && (
+            <div className="p-3 text-xs text-gray-500 border-t border-gray-200">
+              Last updated:{" "}
+              {lastRefreshTime.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -560,6 +717,21 @@ const Inbox: React.FC = () => {
                       : "Offline"}
                   </p>
                 </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {isRefreshing && (
+                  <span className="text-xs text-gray-500 flex items-center gap-1">
+                    <FaSync className="animate-spin" /> Updating...
+                  </span>
+                )}
+                <button
+                  onClick={handleManualRefresh}
+                  disabled={isRefreshing}
+                  className="p-2 text-gray-500 hover:text-green-600 transition disabled:opacity-50"
+                  title="Refresh messages"
+                >
+                  <FaSync className={`${isRefreshing ? "animate-spin" : ""}`} />
+                </button>
               </div>
             </div>
 
