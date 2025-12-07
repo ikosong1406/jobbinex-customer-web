@@ -1,3 +1,3 @@
-// const API = "https://jobbinex-api.onrender.com";
-const API = "http://192.168.105.16:5000";
+const API = "https://api.jobbinex.com";
+// const API = "http://192.168.105.16:5000";
 export default API;
