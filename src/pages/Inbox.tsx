@@ -1,19 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  FaPaperPlane,
-  FaBars,
-  FaSearch,
-  FaUserSlash,
-  FaSync,
-} from "react-icons/fa";
+import { FaPaperPlane, FaBars, FaSearch, FaUserSlash } from "react-icons/fa";
 import axios, { AxiosError } from "axios";
 import localforage from "localforage";
 import toast from "react-hot-toast";
 import Api from "../components/Api";
-
-// --- Custom Hook/Import Mock ---
-const useNavigate = () => (path: string) =>
-  console.log(`Simulating navigation to ${path}`);
 
 // --- Type Definitions ---
 
@@ -110,7 +100,6 @@ const NoAssistantFallback: React.FC = () => {
 };
 
 const Inbox: React.FC = () => {
-  const navigate = useNavigate();
   const [conversations, setConversations] = useState<MessageData[]>([]);
   const [selectedConversation, setSelectedConversation] =
     useState<MessageData | null>(null);
@@ -119,8 +108,8 @@ const Inbox: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingConversation, setLoadingConversation] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isPolling, setIsPolling] = useState(true);
+  // const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPolling] = useState(true);
 
   // Use refs to track the latest state without causing re-renders
   const conversationsRef = useRef<MessageData[]>([]);
@@ -474,21 +463,6 @@ const Inbox: React.FC = () => {
     }
   };
 
-  // Manual refresh button handler
-  const handleManualRefresh = () => {
-    fetchUserData();
-  };
-
-  // Function to stop polling (optional)
-  const stopPolling = () => {
-    setIsPolling(false);
-  };
-
-  // Function to start polling (optional)
-  const startPolling = () => {
-    setIsPolling(true);
-  };
-
   // Check if user has no assistant
   const hasNoAssistant = !loadingUser && userData && !userData.assistant;
   const hasAssistant = !loadingUser && userData && userData.assistant;
@@ -510,14 +484,6 @@ const Inbox: React.FC = () => {
               My Assistant
             </h2>
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleManualRefresh}
-                disabled={isRefreshing}
-                className="p-2 text-gray-500 hover:text-green-600 transition disabled:opacity-50"
-                title="Refresh messages"
-              >
-                <FaSync className={`${isRefreshing ? "animate-spin" : ""}`} />
-              </button>
               <button
                 className="lg:hidden"
                 onClick={() => setSidebarOpen(false)}
