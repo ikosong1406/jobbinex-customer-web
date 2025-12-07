@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   FaPaperPlane,
   FaBars,
@@ -63,7 +63,6 @@ const PRIMARY_COLOR = USER_MESSAGE_COLOR_CLASS;
 const SEND_MESSAGE_ENDPOINT = `${Api}/customer/sendMessage`;
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
 const CREATE_CONVERSATION_ENDPOINT = `${Api}/customer/createConv`;
-const GET_MESSAGE_ENDPOINT = `${Api}/customer/messages`; // Add this endpoint for fetching messages
 
 // --- Fallback Component for No Assistant ---
 const NoAssistantFallback: React.FC = () => {
@@ -120,12 +119,14 @@ const Inbox: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingConversation, setLoadingConversation] = useState(false);
-  const [dataLoaded, setDataLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+  const [isPolling, setIsPolling] = useState(true);
 
-  // Use useRef for polling interval instead of useState
-  const pollingIntervalRef = useRef<number | null>(null);
+  // Use refs to track the latest state without causing re-renders
+  const conversationsRef = useRef<MessageData[]>([]);
+  const selectedConversationRef = useRef<MessageData | null>(null);
+  const userDataRef = useRef<UserData | null>(null);
+  const isPollingRef = useRef(true);
   const chatBodyRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -173,101 +174,13 @@ const Inbox: React.FC = () => {
     };
   };
 
-  // --- Refresh Logic ---
-
-  const refreshMessages = useCallback(
-    async (conversationId?: string) => {
-      if (!userData || !userData.assistant || isRefreshing) {
-        return;
-      }
-
-      setIsRefreshing(true);
-      try {
-        const token = await localforage.getItem("authToken");
-        if (!token) return;
-
-        // Fetch all user messages
-        const response = await axios.get<{ messages: MessageData[] }>(
-          GET_MESSAGE_ENDPOINT,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        if (response.data.messages && response.data.messages.length > 0) {
-          const enhancedMessages = response.data.messages.map((msg) =>
-            enhanceMessageData(msg, userData)
-          );
-
-          setConversations(enhancedMessages);
-
-          // If we have a selected conversation, update it
-          if (selectedConversation) {
-            const currentConv = enhancedMessages.find(
-              (conv) => conv._id === selectedConversation._id
-            );
-            if (currentConv) {
-              setSelectedConversation(currentConv);
-            }
-          } else if (conversationId) {
-            // If we just created a conversation, select it
-            const newConv = enhancedMessages.find(
-              (conv) => conv._id === conversationId
-            );
-            if (newConv) {
-              setSelectedConversation(newConv);
-            }
-          } else if (enhancedMessages.length > 0) {
-            // Select the first conversation by default
-            setSelectedConversation(enhancedMessages[0]);
-          }
-        }
-
-        setLastRefreshTime(new Date());
-      } catch (error) {
-        console.error("Failed to refresh messages:", error);
-        // Don't stop polling on error, just log it
-      } finally {
-        setIsRefreshing(false);
-      }
-    },
-    [userData, selectedConversation, isRefreshing]
-  );
-
-  // Start polling for new messages every 2 seconds
-  const startPolling = useCallback(() => {
-    // Clear existing interval
-    if (pollingIntervalRef.current) {
-      window.clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-
-    pollingIntervalRef.current = window.setInterval(() => {
-      if (userData?.assistant && !isRefreshing) {
-        refreshMessages();
-      }
-    }, 2000); // Poll every 2 seconds
-  }, [userData, isRefreshing, refreshMessages]);
-
-  // Stop polling
-  const stopPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      window.clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-  }, []);
-
-  // --- Data Fetching ---
-
+  // Function to fetch user data (messages) - SIMPLIFIED VERSION
   const fetchUserData = async () => {
-    setLoadingUser(true);
-    setDataLoaded(false);
     try {
       const token = await localforage.getItem("authToken");
 
       if (!token) {
-        toast.error("Session expired or token missing. Please log in.");
-        navigate("/");
+        console.error("Session expired or token missing. Please log in.");
         return;
       }
 
@@ -277,127 +190,73 @@ const Inbox: React.FC = () => {
         },
       });
 
-      setUserData(response.data);
-      setDataLoaded(true);
-    } catch (error) {
-      const axiosError = error as AxiosError;
-      console.error("User data fetch failed:", axiosError);
-      setDataLoaded(true);
+      const userData = response.data;
+      setUserData(userData);
+      userDataRef.current = userData;
 
+      // Transform the API data into the format expected by the component
       if (
-        axiosError.response?.status === 401 ||
-        axiosError.response?.status === 403
+        userData.assistant &&
+        userData.messages &&
+        userData.messages.length > 0
       ) {
-        toast.error("Your session has expired. Please log in again.");
-        await localforage.removeItem("authToken");
-        navigate("/");
-      } else {
-        toast.error("Failed to load user data.");
+        const transformedConversations: MessageData[] = userData.messages.map(
+          (message) => {
+            return enhanceMessageData(message, userData);
+          }
+        );
+
+        // Only update if there are actual changes to avoid unnecessary re-renders
+        if (
+          JSON.stringify(transformedConversations) !==
+          JSON.stringify(conversationsRef.current)
+        ) {
+          setConversations(transformedConversations);
+          conversationsRef.current = transformedConversations;
+
+          // Update selected conversation if it exists in the new data
+          if (selectedConversationRef.current) {
+            const updatedSelectedConversation = transformedConversations.find(
+              (conv) => conv._id === selectedConversationRef.current?._id
+            );
+            if (updatedSelectedConversation) {
+              setSelectedConversation(updatedSelectedConversation);
+              selectedConversationRef.current = updatedSelectedConversation;
+            }
+          } else if (transformedConversations.length > 0) {
+            // Set the first conversation as selected if no conversation is selected yet
+            setSelectedConversation(transformedConversations[0]);
+            selectedConversationRef.current = transformedConversations[0];
+          }
+        }
+      } else if (userData.assistant) {
+        // User has assistant but no messages - create a temporary conversation
+        const tempConversation: MessageData = {
+          _id: `temp-${Date.now()}`,
+          userId: userData._id,
+          assistantId: userData.assistant._id,
+          conversation: [],
+          title: "New Conversation",
+          lastActivityAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          ...getAssistantDetails(userData),
+        };
+
+        setConversations([tempConversation]);
+        conversationsRef.current = [tempConversation];
+        setSelectedConversation(tempConversation);
+        selectedConversationRef.current = tempConversation;
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      // Only show error toast for initial load, not for polling failures
+      if (loadingUser) {
+        toast.error("Failed to load messages.");
       }
     } finally {
       setLoadingUser(false);
     }
-  };
-
-  const fetchOrCreateConversation = async () => {
-    if (!userData) {
-      toast.error("User data not loaded.");
-      return;
-    }
-
-    if (!userData.assistant) {
-      toast.error("No assistant assigned to your account.");
-      return;
-    }
-
-    setLoadingConversation(true);
-    try {
-      const token = await localforage.getItem("authToken");
-      if (!token) {
-        toast.error("Authentication required.");
-        return;
-      }
-
-      let conversation: MessageData | null = null;
-
-      // If user has existing messages, use the first one
-      if (userData.messages && userData.messages.length > 0) {
-        conversation = userData.messages[0];
-      } else {
-        // If no existing conversation, create a new one
-        const createResponse = await axios.post<{
-          message: string;
-          conversation: MessageData;
-        }>(
-          CREATE_CONVERSATION_ENDPOINT,
-          {
-            assistantId: userData.assistant._id,
-          },
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        conversation = createResponse.data.conversation;
-      }
-
-      // Add display data for the conversation using the assistant from userData
-      const enhancedConversation = enhanceMessageData(conversation, userData);
-
-      setConversations([enhancedConversation]);
-      setSelectedConversation(enhancedConversation);
-
-      // Refresh messages to get the latest
-      refreshMessages(enhancedConversation._id);
-    } catch (err) {
-      const axiosError = err as AxiosError;
-      console.error("Conversation fetch/create failed:", axiosError);
-      toast.error("Failed to load conversation.");
-    } finally {
-      setLoadingConversation(false);
-    }
-  };
-
-  // Create a temporary conversation from userData (for UI purposes when no conversation exists)
-  const createTemporaryConversation = (userData: UserData): MessageData => {
-    const assistantDetails = getAssistantDetails(userData);
-
-    return {
-      _id: `temp-${Date.now()}`,
-      userId: userData._id,
-      assistantId: userData.assistant?._id || "unassigned",
-      conversation: [],
-      title: "New Conversation",
-      lastActivityAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      ...assistantDetails,
-    };
-  };
-
-  // Initialize conversations after user data is loaded
-  const initializeConversations = (userData: UserData) => {
-    // If user has an assistant but no messages, create a temporary conversation for UI
-    if (
-      userData.assistant &&
-      (!userData.messages || userData.messages.length === 0)
-    ) {
-      try {
-        const tempConversation = createTemporaryConversation(userData);
-        setConversations([tempConversation]);
-        setSelectedConversation(tempConversation);
-      } catch (error) {
-        console.error("Failed to create temporary conversation:", error);
-      }
-    } else if (userData.messages && userData.messages.length > 0) {
-      // User has existing messages - enhance the first one with display data
-      const enhancedMessage = enhanceMessageData(
-        userData.messages[0],
-        userData
-      );
-      setConversations([enhancedMessage]);
-      setSelectedConversation(enhancedMessage);
-    }
-    // If no assistant and no messages, the fallback will handle it
   };
 
   // Initial data fetch
@@ -405,37 +264,44 @@ const Inbox: React.FC = () => {
     fetchUserData();
   }, []);
 
-  // Initialize conversations when user data loads
+  // Polling effect - fetch messages every 2 seconds
   useEffect(() => {
-    if (!loadingUser && userData && dataLoaded) {
-      initializeConversations(userData);
-    }
-  }, [loadingUser, userData, dataLoaded]);
+    // Skip polling if not enabled or no assistant
+    if (!isPolling || !userData?.assistant) return;
 
-  // Start polling when a conversation is selected and user has assistant
-  useEffect(() => {
-    if (selectedConversation && userData?.assistant) {
-      startPolling();
-    } else {
-      stopPolling();
-    }
+    const intervalId = setInterval(() => {
+      if (isPollingRef.current && userData?.assistant) {
+        fetchUserData();
+      }
+    }, 2000); // 2 seconds
 
+    // Cleanup interval on component unmount or when polling stops
     return () => {
-      stopPolling();
+      clearInterval(intervalId);
     };
-  }, [selectedConversation, userData, startPolling, stopPolling]);
+  }, [isPolling, userData?.assistant]);
 
-  // Clean up polling interval on component unmount
+  // Update refs when state changes
   useEffect(() => {
-    return () => {
-      stopPolling();
-    };
-  }, [stopPolling]);
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    selectedConversationRef.current = selectedConversation;
+  }, [selectedConversation]);
+
+  useEffect(() => {
+    userDataRef.current = userData;
+  }, [userData]);
+
+  useEffect(() => {
+    isPollingRef.current = isPolling;
+  }, [isPolling]);
 
   // Scroll to bottom when conversation updates
   useEffect(() => {
     scrollToBottom();
-  }, [selectedConversation]);
+  }, [selectedConversation?.conversation?.length]);
 
   // --- Send Message Handler ---
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -457,7 +323,7 @@ const Inbox: React.FC = () => {
     setNewMessage("");
 
     const newEntry: ConversationEntry = {
-      _id: Date.now().toString(),
+      _id: `temp-${Date.now()}`,
       role: "user",
       content: messageContent,
       createdAt: new Date().toISOString(),
@@ -512,9 +378,6 @@ const Inbox: React.FC = () => {
           },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-
-        // Refresh to get the actual conversation data
-        refreshMessages(conversationId);
       } else {
         // Existing conversation - just send the message
         await axios.post(
@@ -526,12 +389,10 @@ const Inbox: React.FC = () => {
           },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-
-        // Refresh after sending message to get any immediate response
-        setTimeout(() => {
-          refreshMessages(conversationId);
-        }, 500);
       }
+
+      // Immediately refresh messages after sending
+      fetchUserData();
     } catch (err) {
       console.error("Message send failed:", err);
       toast.error("Failed to send message.");
@@ -542,7 +403,7 @@ const Inbox: React.FC = () => {
           ? {
               ...prev,
               conversation: prev.conversation.filter(
-                (msg) => msg._id !== newEntry._id
+                (msg) => !msg._id.startsWith("temp-")
               ),
             }
           : null
@@ -555,11 +416,77 @@ const Inbox: React.FC = () => {
     }
   };
 
+  const fetchOrCreateConversation = async () => {
+    if (!userData) {
+      toast.error("User data not loaded.");
+      return;
+    }
+
+    if (!userData.assistant) {
+      toast.error("No assistant assigned to your account.");
+      return;
+    }
+
+    setLoadingConversation(true);
+    try {
+      const token = await localforage.getItem("authToken");
+      if (!token) {
+        toast.error("Authentication required.");
+        return;
+      }
+
+      let conversation: MessageData | null = null;
+
+      // If user has existing messages, use the first one
+      if (userData.messages && userData.messages.length > 0) {
+        conversation = userData.messages[0];
+      } else {
+        // If no existing conversation, create a new one
+        const createResponse = await axios.post<{
+          message: string;
+          conversation: MessageData;
+        }>(
+          CREATE_CONVERSATION_ENDPOINT,
+          {
+            assistantId: userData.assistant._id,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        conversation = createResponse.data.conversation;
+      }
+
+      // Add display data for the conversation using the assistant from userData
+      const enhancedConversation = enhanceMessageData(conversation, userData);
+
+      setConversations([enhancedConversation]);
+      setSelectedConversation(enhancedConversation);
+
+      // Immediately refresh messages to get latest
+      fetchUserData();
+    } catch (err) {
+      const axiosError = err as AxiosError;
+      console.error("Conversation fetch/create failed:", axiosError);
+      toast.error("Failed to load conversation.");
+    } finally {
+      setLoadingConversation(false);
+    }
+  };
+
   // Manual refresh button handler
   const handleManualRefresh = () => {
-    if (!isRefreshing) {
-      refreshMessages();
-    }
+    fetchUserData();
+  };
+
+  // Function to stop polling (optional)
+  const stopPolling = () => {
+    setIsPolling(false);
+  };
+
+  // Function to start polling (optional)
+  const startPolling = () => {
+    setIsPolling(true);
   };
 
   // Check if user has no assistant
@@ -610,43 +537,55 @@ const Inbox: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto mt-2">
-            {conversations.map((conv) => (
-              <div
-                key={conv._id}
-                onClick={() => {
-                  setSelectedConversation(conv);
-                  setSidebarOpen(false);
-                }}
-                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all duration-150 hover:bg-gray-100
-                  ${
-                    selectedConversation?._id === conv._id
-                      ? `bg-gray-100 border-l-4 ${PRIMARY_COLOR}`
-                      : ""
-                  }`}
-              >
-                <img
-                  src={conv.assistantAvatar}
-                  alt={conv.assistantName}
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-                <div className="flex-1">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-sm font-medium text-gray-900">
-                      {conv.assistantName}
-                    </h3>
-                    <div className="flex items-center gap-1">
-                      {conv.isAssistantOnline && (
-                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 truncate">
-                    {conv.conversation[conv.conversation.length - 1]?.content ||
-                      "Start a conversation..."}
-                  </p>
-                </div>
+            {conversations.length === 0 ? (
+              <div className="text-center text-gray-500 mt-8 px-4">
+                <p>No conversations yet</p>
+                <p className="text-sm mt-2">
+                  Start a conversation with your assistant
+                </p>
               </div>
-            ))}
+            ) : (
+              conversations.map((conv) => (
+                <div
+                  key={conv._id}
+                  onClick={() => {
+                    setSelectedConversation(conv);
+                    setSidebarOpen(false);
+                  }}
+                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all duration-150 hover:bg-gray-100
+                    ${
+                      selectedConversation?._id === conv._id
+                        ? `bg-gray-100 border-l-4 ${PRIMARY_COLOR}`
+                        : ""
+                    }`}
+                >
+                  <img
+                    src={conv.assistantAvatar}
+                    alt={conv.assistantName}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-sm font-medium text-gray-900">
+                        {conv.assistantName}
+                      </h3>
+                      <div className="flex items-center gap-1">
+                        {conv.isAssistantOnline && (
+                          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">
+                      {conv.conversation[conv.conversation.length - 1]
+                        ?.content || "Start a conversation..."}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {conv.conversation.length} messages
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
 
             {/* Show loading state */}
             {loadingConversation && (
@@ -659,17 +598,6 @@ const Inbox: React.FC = () => {
               </div>
             )}
           </div>
-
-          {/* Last refresh time indicator */}
-          {lastRefreshTime && (
-            <div className="p-3 text-xs text-gray-500 border-t border-gray-200">
-              Last updated:{" "}
-              {lastRefreshTime.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </div>
-          )}
         </div>
       )}
 
@@ -718,21 +646,6 @@ const Inbox: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                {isRefreshing && (
-                  <span className="text-xs text-gray-500 flex items-center gap-1">
-                    <FaSync className="animate-spin" /> Updating...
-                  </span>
-                )}
-                <button
-                  onClick={handleManualRefresh}
-                  disabled={isRefreshing}
-                  className="p-2 text-gray-500 hover:text-green-600 transition disabled:opacity-50"
-                  title="Refresh messages"
-                >
-                  <FaSync className={`${isRefreshing ? "animate-spin" : ""}`} />
-                </button>
-              </div>
             </div>
 
             {/* Chat Body */}
@@ -746,6 +659,9 @@ const Inbox: React.FC = () => {
                   <p className="text-sm">
                     Start a conversation with your assistant!
                   </p>
+                  <div className="mt-4 text-xs text-gray-400">
+                    Auto-refreshing every 2 seconds for new messages
+                  </div>
                 </div>
               ) : (
                 selectedConversation.conversation.map((msg) => (
@@ -831,6 +747,9 @@ const Inbox: React.FC = () => {
               >
                 Start Conversation
               </button>
+              <div className="mt-4 text-xs text-gray-400">
+                Will auto-refresh for new messages every 2 seconds
+              </div>
             </div>
           </div>
         ) : (

@@ -520,15 +520,12 @@ const Profile: React.FC = () => {
               Active Subscription Details
             </h2>
             <p className="text-base text-gray-700">
-              You are currently on the **{currentPlanName}** plan.
+              You are currently on the{" "}
+              <span className="text-green-500">{currentPlanName} </span>plan.
             </p>
             <p className="text-sm text-gray-500">
-              Your plan expires on: **
-              {new Date(userData!.plan!.expiresAt).toLocaleDateString()}**
-            </p>
-            <p className="mt-4 text-sm text-gray-500">
-              Contact support if you need to manage or upgrade your active
-              subscription.
+              Your plan expires on:
+              {new Date(userData!.plan!.expiresAt).toLocaleDateString()}
             </p>
           </div>
         )}
