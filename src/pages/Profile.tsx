@@ -1,152 +1,141 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import axios, { AxiosError } from "axios";
+import localforage from "localforage";
+import { toast, Toaster } from "react-hot-toast";
 import {
   FaEnvelope,
   FaPhone,
   FaLink,
-  FaEye,
-  FaEyeSlash,
   FaSignOutAlt,
+  FaCheck,
+  FaBriefcase,
+  FaMapMarkerAlt,
+  FaBuilding,
+  FaArrowRight,
+  FaCheckCircle,
+  FaUserEdit,
+  FaRocket,
+  FaCreditCard,
+  FaRegCalendarAlt,
+  FaExclamationCircle,
 } from "react-icons/fa";
-import axios, { AxiosError } from "axios";
-import localforage from "localforage";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { toast, Toaster } from "react-hot-toast";
+import { FiArrowUpRight } from "react-icons/fi";
 import Api from "../components/Api";
-import SubscriptionPlans from "../components/SubscriptionPlans"; // Add this import
 
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
-const USER_UPDATE_ENDPOINT = `${Api}/customer/profile`;
-const SUBSCRIPTION_ENDPOINT = `${Api}/customer/subscribe`;
-const PRIMARY_COLOR = "#4eaa3c";
-
-// ------------------ FIX: TYPE FOR PROFILE FIELDS ------------------
-interface ProfileField {
-  label: string;
-  value: string;
-  icon?: React.ComponentType<any>;
-  type?: string;
-  placeholder?: string;
-  setState?: (value: string) => void;
-  showPassword?: boolean;
-  setShowPassword?: (value: boolean) => void;
-}
-
-// ------------------
 
 interface PlanData {
   name: string;
   expiresAt: string;
 }
+
 interface UserData {
   plan?: PlanData;
   _id: string;
   firstname: string;
   lastname: string;
   email: string;
-  phonenumber: string;
+  phonenumber?: string;
   jobEmail?: string;
   jobPassword?: string;
+  jobProvider?: string;
   cv?: string;
-  preferredIndustries: string;
-  preferredRoles: string;
-  preferredLocations: string;
+  preferredIndustries?: string | string[];
+  preferredRoles?: string | string[];
+  preferredLocations?: string | string[];
 }
 
-interface Plan {
-  name: string;
-  price: number;
-  oldPrice: number | null;
-  duration: string;
-  description: string;
-  features: string[];
-  discount: number;
-  highlight: boolean;
-}
-
-const calculateProfileCompletion = (user: UserData): number => {
-  const totalFields = 6;
-  let completedFields = 0;
-  if (user.phonenumber) completedFields++;
-  if (user.jobEmail) completedFields++;
-  if (user.jobPassword) completedFields++;
-  if (user.cv) completedFields++;
-  if (
-    user.preferredIndustries ||
-    user.preferredRoles ||
-    user.preferredLocations
-  )
-    completedFields++;
-  if (user.lastname) completedFields++;
-  return Math.round((completedFields / totalFields) * 100);
+const toArray = (v?: string | string[]): string[] => {
+  if (!v) return [];
+  if (Array.isArray(v)) return v;
+  return v
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 };
+
+const getInitials = (first: string, last: string) => {
+  if (!first && !last) return "U";
+  return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
+};
+
+const SectionHeader: React.FC<{ title: string; description?: string }> = ({
+  title,
+  description,
+}) => (
+  <div className="mb-4">
+    <div className="flex items-center gap-2">
+      <span className="w-1 h-5 bg-[#4eaa3c] rounded-full" />
+      <h2 className="font-bold text-gray-900 text-lg">{title}</h2>
+    </div>
+    {description && (
+      <p className="text-xs text-gray-400 mt-1 pl-3">{description}</p>
+    )}
+  </div>
+);
+
+// One-line summary row used inside the "details" card
+const SummaryRow = ({
+  icon,
+  label,
+  value,
+  complete,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value?: string;
+  complete: boolean;
+}) => (
+  <div className="flex items-start gap-3 py-3">
+    <div
+      className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs ${
+        complete ? "bg-emerald-50 text-[#4eaa3c]" : "bg-gray-100 text-gray-400"
+      }`}
+    >
+      {complete ? <FaCheck className="text-[10px]" /> : icon}
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="text-xs font-semibold text-gray-500">{label}</p>
+      <p
+        className={`mt-0.5 truncate text-sm ${
+          complete ? "text-gray-800" : "text-gray-400"
+        }`}
+      >
+        {value || "Not set"}
+      </p>
+    </div>
+  </div>
+);
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   const [loading, setLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showJobPassword, setShowJobPassword] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [jobEmail, setJobEmail] = useState("");
-  const [jobPassword, setJobPassword] = useState("");
-  const [cvLink, setCvLink] = useState("");
-
-  const [industry, setIndustry] = useState("");
-  const [role, setRole] = useState("");
-  const [location, setLocation] = useState("");
-
-  // Get user initials for profile picture
-  const getUserInitials = () => {
-    if (!firstName && !lastName) return "U";
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  };
-
   const handleLogout = async () => {
-    try {
-      await localforage.removeItem("authToken");
-      toast.success("Logged out successfully");
-      navigate("/", { replace: true });
-    } catch (error) {
-      toast.error("Error during logout");
-    }
+    await localforage.removeItem("authToken");
+    toast.success("Logged out");
+    navigate("/", { replace: true });
   };
 
   const fetchUserData = async () => {
     try {
       setLoading(true);
       const token = await localforage.getItem("authToken");
-
       if (!token) {
         navigate("/", { replace: true });
         return;
       }
-
       const { data } = await axios.get<UserData>(USER_DATA_ENDPOINT, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       setUserData(data);
-      setFirstName(data.firstname);
-      setLastName(data.lastname);
-      setEmail(data.email);
-      setPhone(data.phonenumber);
-      setJobEmail(data.jobEmail || "");
-      setJobPassword(data.jobPassword || "");
-      setCvLink(data.cv || "");
-
-      // Set string values instead of arrays
-      setIndustry(data.preferredIndustries || "");
-      setRole(data.preferredRoles || "");
-      setLocation(data.preferredLocations || "");
     } catch (error) {
       const err = error as AxiosError;
-      toast.error("Failed to load profile data.");
+      toast.error("Failed to load profile.");
       if (err.response?.status === 401) navigate("/", { replace: true });
     } finally {
       setLoading(false);
@@ -157,393 +146,394 @@ const Profile: React.FC = () => {
     fetchUserData();
   }, []);
 
-  const handleSaveProfile = async () => {
-    setIsSaving(true);
-    const token = await localforage.getItem("authToken");
-    if (!token) return;
-
-    // Use the NEW field names that match your schema
-    const updates = {
-      jobEmail,
-      jobPassword,
-      cv: cvLink,
-      preferredIndustries: industry, // Map to schema field name
-      preferredRoles: role, // Map to schema field name
-      preferredLocations: location, // Map to schema field name
-      phonenumber: phone,
-    };
-
-    try {
-      const response = await axios.patch(USER_UPDATE_ENDPOINT, updates, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      toast.success("Profile updated!");
-
-      // Update local state with the response data
-      if (response.data.user) {
-        setUserData(response.data.user);
-      }
-    } catch (error: any) {
-      console.error("Update error:", error.response?.data || error.message);
-      toast.error(error.response?.data?.message || "Failed to save changes.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
+  // Return from checkout
   useEffect(() => {
-    const success = searchParams.get("success");
-    const planName = searchParams.get("plan");
-    const canceled = searchParams.get("canceled");
-
-    const activateSubscription = async () => {
-      if (!planName) return;
-
-      const token = await localforage.getItem("authToken");
-      if (!token) return;
-
-      try {
-        await axios.post(
-          SUBSCRIPTION_ENDPOINT,
-          { planName },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        toast.success("Subscription activated!");
-        fetchUserData();
-      } catch {
-        toast.error("Payment successful, but activation failed.");
-      } finally {
-        navigate("/profile", { replace: true });
-      }
-    };
-
-    if (success === "true") {
-      toast.success("Payment successful!");
-      activateSubscription();
-    }
-
-    if (canceled === "true") {
-      toast.error("Payment canceled.");
+    if (searchParams.get("subscribed") === "true") {
+      toast.success("Subscription activated");
+      fetchUserData();
       navigate("/profile", { replace: true });
     }
   }, [searchParams]);
 
-  const plans: Plan[] = [
-    {
-      name: "Starter",
-      price: 49.99,
-      oldPrice: null,
-      duration: "/Monthly",
-      description: "Perfect for individuals just starting.",
-      features: [
-        "Up to 40+ job applications",
-        "Application status tracking",
-        "Weekly performance summary",
-        // Added features from the message
-        "Professionally Written CV & Cover Letter", // Core document creation
-        "Human-Written Guarantee (No AI)", // Quality assurance
-        "ATS Optimization for all documents",
-      ],
-      discount: 0,
-      highlight: false,
-    },
-    {
-      name: "Professional",
-      price: 99.99,
-      oldPrice: 124.99,
-      duration: "/Monthly",
-      description: "Ideal for steady job seekers.",
-      features: [
-        "Everything in Starter, plus:",
-        "Up to 100+ job applications",
-        "Priority application review",
-        "Custom CV & cover letter optimization",
-        "Weekly insights and optimization tips",
-        // Added features from the message
-        "LinkedIn Profile Refinement & Optimization", // Hands-on service
-        "Targeted Job Research Assistance", // Hands-on service
-        "Assisted Application Submissions", // Hands-on service
-      ],
-      discount: 20,
-      highlight: true,
-    },
-    {
-      name: "Elite",
-      price: 249.99,
-      oldPrice: 499.99,
-      duration: "/Monthly",
-      description: "For executives & power users.",
-      features: [
-        "Everything in Professional, plus:",
-        "Unlimited job applications",
-        "Detailed progress reports",
-        "Dedicated career strategist session",
-        "Full application management",
-        // Added features from the message
-        "Priority Service & Faster Turnaround", // Priority service
-        "One-to-One Interview Coaching Session", // High-level support
-        "Personal Brand Strategy & Crafting", // High-level support
-      ],
-      discount: 50,
-      highlight: false,
-    },
-  ];
+  // Return from setup wizard — refresh silently
+  useEffect(() => {
+    if (searchParams.get("updated") === "true") {
+      fetchUserData();
+      navigate("/profile", { replace: true });
+    }
+  }, [searchParams]);
 
-  const profilePercent = userData ? calculateProfileCompletion(userData) : 0;
-  // Get plan details
-  const hasActivePlan = !!userData?.plan?.name;
+  const planExpired =
+    !!userData?.plan?.name &&
+    !!userData.plan.expiresAt &&
+    new Date(userData.plan.expiresAt) <= new Date();
+  const hasActivePlan = !!userData?.plan?.name && !planExpired;
   const currentPlanName = userData?.plan?.name;
 
-  if (loading)
+  const checklist = useMemo(() => {
+    if (!userData) return [];
+    return [
+      { label: "Phone number", done: !!userData.phonenumber },
+      { label: "Job-hunting email", done: !!userData.jobEmail },
+      { label: "Job-hunting password", done: !!userData.jobPassword },
+      { label: "CV link", done: !!userData.cv },
+      {
+        label: "Target roles or industries",
+        done:
+          toArray(userData.preferredRoles).length > 0 ||
+          toArray(userData.preferredIndustries).length > 0,
+      },
+    ];
+  }, [userData]);
+
+  const completedCount = checklist.filter((c) => c.done).length;
+  const completionPct = checklist.length
+    ? Math.round((completedCount / checklist.length) * 100)
+    : 0;
+  const isComplete = completionPct === 100;
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto" />
-          <p className="mt-4 text-gray-600">Loading profile...</p>
-        </div>
+      <div className="min-h-[70vh] flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-gray-200 border-t-[#4eaa3c] rounded-full animate-spin" />
+        <p className="text-sm text-gray-500 mt-4">Loading your profile...</p>
       </div>
     );
-
-  // -------------------------------------------
-  // PERSONAL INFORMATION FIXED SECTION
-  // -------------------------------------------
-
-  const personalFields: ProfileField[] = [
-    { label: "First Name", value: firstName, setState: setFirstName },
-    { label: "Last Name", value: lastName, setState: setLastName },
-    { label: "Primary Email", value: email, icon: FaEnvelope },
-    {
-      label: "Job Hunting Email",
-      value: jobEmail,
-      icon: FaEnvelope,
-      setState: setJobEmail,
-      placeholder: "Your other email for applications",
-    },
-    {
-      label: "Job Password",
-      value: jobPassword,
-      type: "password",
-      icon: FaEnvelope, // Icon might not be the best fit for password
-      setState: setJobPassword,
-      showPassword: showJobPassword,
-      setShowPassword: setShowJobPassword,
-      placeholder: "Password for your job hunting account",
-    },
-    { label: "Phone", value: phone, icon: FaPhone, setState: setPhone },
-    {
-      label: "CV Link",
-      value: cvLink,
-      icon: FaLink,
-      setState: setCvLink,
-      placeholder: "https://drive.google.com/your-cv",
-    },
-  ];
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white py-10 px-4">
-      <Toaster />
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col md:flex-row justify-between items-center">
-          <div className="flex items-center gap-4">
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-semibold text-white"
-              style={{ backgroundColor: PRIMARY_COLOR }}
-            >
-              {getUserInitials()}
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {firstName} {lastName}
-              </h1>
-              <p className="text-sm text-gray-500">
-                {hasActivePlan
-                  ? `Active Plan: ${currentPlanName} (Expires: ${new Date(
-                      userData!.plan!.expiresAt
-                    ).toLocaleDateString()})`
-                  : "No Active Subscription"}
-              </p>
-            </div>
-          </div>
+    <div className="w-full max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6 py-6">
+      <Toaster position="top-center" />
 
-          <div className="w-full md:w-1/3 mt-4 md:mt-0">
-            <p className="text-xs text-gray-500 mb-1">
-              Profile Completion: {profilePercent}%
+      {/* Header */}
+      <section className="flex flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold text-white shadow-md"
+            style={{ backgroundColor: "#17231a" }}
+          >
+            {getInitials(userData?.firstname || "", userData?.lastname || "")}
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#17231a] tracking-tight">
+              {userData?.firstname} {userData?.lastname}
+            </h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {hasActivePlan ? (
+                <>
+                  <span className="text-[#4eaa3c] font-semibold">
+                    {currentPlanName}
+                  </span>
+                  {" · renews "}
+                  {new Date(userData!.plan!.expiresAt).toLocaleDateString(
+                    "en-GB",
+                    { day: "numeric", month: "short" },
+                  )}
+                </>
+              ) : planExpired ? (
+                <span className="text-amber-600 font-medium">
+                  Plan expired — renew to keep applying
+                </span>
+              ) : (
+                "No active plan"
+              )}
             </p>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="h-2 rounded-full"
-                style={{
-                  width: `${profilePercent}%`,
-                  backgroundColor: PRIMARY_COLOR,
-                }}
-              />
-            </div>
           </div>
         </div>
 
-        {/* Personal Info */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold mb-6">Personal Information</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs font-semibold text-gray-600 transition hover:bg-gray-50"
+          >
+            <FaSignOutAlt className="text-[11px]" />
+            Log out
+          </button>
+        </div>
+      </section>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {personalFields.map((field, idx) => (
-              <div key={idx}>
-                <label className="text-sm text-gray-600 mb-1 block">
-                  {field.label}
-                </label>
-                <div className="flex items-center border border-gray-200 rounded-lg px-3 py-2">
-                  {field.icon && <field.icon className="text-gray-400 mr-2" />}
+      {/* Next steps */}
+      <section>
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-1 h-5 bg-[#4eaa3c] rounded-full" />
+          <h2 className="font-bold text-gray-900 text-lg">Your next steps</h2>
+        </div>
 
-                  <input
-                    type={
-                      field.type === "password" && field.showPassword
-                        ? "text"
-                        : field.type || "text"
-                    }
-                    value={field.value}
-                    // Only allow editing if setState is provided
-                    readOnly={!field.setState}
-                    onChange={
-                      field.setState
-                        ? (e) => field.setState!(e.target.value)
-                        : undefined
-                    }
-                    placeholder={field.placeholder}
-                    className={`flex-1 outline-none text-sm ${
-                      !field.setState ? "bg-gray-50 text-gray-500" : ""
-                    }`}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Profile completion — links to wizard */}
+          <div className="relative overflow-hidden bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+            <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-50 rounded-full blur-3xl opacity-70 pointer-events-none" />
+            <div className="relative z-10">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-50 text-[#4eaa3c] flex items-center justify-center">
+                    <FaUserEdit size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">
+                      Profile readiness
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {completedCount} of {checklist.length} complete
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+                    isComplete
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  {isComplete ? "Completed" : "Action needed"}
+                </span>
+              </div>
+
+              <div className="mt-6">
+                <div className="flex items-end justify-between mb-2">
+                  <p className="text-xs text-gray-400 font-medium">
+                    Profile completion
+                  </p>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <h2 className="text-3xl font-extrabold text-[#17231a]">
+                    {completionPct}
+                    <span className="text-lg text-gray-400">%</span>
+                  </h2>
+                </div>
+                <div className="mt-2 h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${completionPct}%`,
+                      backgroundColor: "#4eaa3c",
+                    }}
                   />
+                </div>
+              </div>
 
-                  {field.type === "password" && field.setShowPassword && (
-                    <button
-                      type="button"
-                      className="text-gray-400 ml-2"
-                      onClick={() =>
-                        field.setShowPassword!(!field.showPassword)
+              <ul className="mt-5 space-y-2">
+                {checklist.map((c) => (
+                  <li key={c.label} className="flex items-center gap-2 text-xs">
+                    <div
+                      className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
+                        c.done
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-gray-100 text-gray-400"
+                      }`}
+                    >
+                      {c.done ? (
+                        <FaCheck className="text-[8px]" />
+                      ) : (
+                        <span className="w-1 h-1 rounded-full bg-gray-400" />
+                      )}
+                    </div>
+                    <span
+                      className={
+                        c.done ? "text-gray-400 line-through" : "text-gray-600"
                       }
                     >
-                      {field.showPassword ? <FaEyeSlash /> : <FaEye />}
-                    </button>
-                  )}
-                </div>
+                      {c.label}
+                    </span>
+                  </li>
+                ))}
+              </ul>
 
-                {field.label === "CV Link" && field.value && (
-                  <a
-                    href={field.value}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-500 hover:underline mt-1 block"
-                  >
-                    View CV
-                  </a>
-                )}
+              <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <p className="text-xs text-gray-500">
+                  {isComplete
+                    ? "You're ready to be matched."
+                    : "Open the guided setup to finish these."}
+                </p>
+                <button
+                  onClick={() => navigate("/setup")}
+                  className="inline-flex items-center justify-center gap-2 bg-[#17231a] hover:bg-[#263d2a] text-white px-5 py-3 rounded-xl text-sm font-semibold transition-all whitespace-nowrap"
+                >
+                  {isComplete ? "Review setup" : "Finish setup"}
+                  <FiArrowUpRight size={16} />
+                </button>
               </div>
-            ))}
+            </div>
+          </div>
+
+          {/* Plan status card */}
+          <div className="relative overflow-hidden bg-[#14251a] rounded-2xl p-6 text-white shadow-lg shadow-green-950/10">
+            <div className="absolute -right-12 -top-16 w-64 h-64 rounded-full bg-[#4eaa3c]/20 blur-3xl pointer-events-none" />
+            <div className="absolute right-0 bottom-0 opacity-[0.07] pointer-events-none">
+              <FaCreditCard size={180} />
+            </div>
+
+            <div className="relative z-10">
+              {hasActivePlan ? (
+                <>
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-[#8cdb78]">
+                        <FaCheckCircle size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">Active plan</h3>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {currentPlanName}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="bg-emerald-400/10 text-emerald-300 text-xs font-bold px-3 py-1.5 rounded-full">
+                      Active
+                    </span>
+                  </div>
+
+                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
+                    Renews on{" "}
+                    {new Date(userData!.plan!.expiresAt).toLocaleDateString(
+                      "en-GB",
+                      { day: "numeric", month: "long", year: "numeric" },
+                    )}
+                    .
+                  </h2>
+
+                  <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
+                    Your career team is actively applying on your behalf.
+                    Nothing to do — we'll notify you when something needs your
+                    attention.
+                  </p>
+
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <button
+                      onClick={() => navigate("/jobs")}
+                      className="inline-flex items-center justify-center gap-2 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-5 py-3 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all group"
+                    >
+                      View job pipeline
+                      <FaArrowRight
+                        className="group-hover:translate-x-1 transition"
+                        size={12}
+                      />
+                    </button>
+                    <button
+                      onClick={() => navigate("/checkout")}
+                      className="inline-flex items-center justify-center gap-2 border border-white/20 bg-white/5 hover:bg-white/10 text-white px-5 py-3 rounded-xl text-sm font-semibold transition"
+                    >
+                      Manage plan
+                      <FiArrowUpRight size={14} />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-[#4eaa3c]/20 flex items-center justify-center text-[#8cdb78]">
+                        <FaRocket size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">
+                          {planExpired
+                            ? "Renew your plan"
+                            : "Activate your assistant"}
+                        </h3>
+                      </div>
+                    </div>
+                    <span className="bg-amber-400/10 text-amber-300 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
+                      {planExpired ? "Expired" : "Not activated"}
+                    </span>
+                  </div>
+
+                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
+                    {planExpired
+                      ? "Your applications are safe. Pick up where you left off."
+                      : "Let your next opportunity find you."}
+                  </h2>
+
+                  <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
+                    {planExpired
+                      ? "Renew to resume your pipeline. Your saved preferences and history are preserved."
+                      : "Subscribe and we'll start applying on your behalf within 24 hours. You focus on interviews — we handle the busywork."}
+                  </p>
+
+                  <button
+                    onClick={() => navigate("/checkout")}
+                    className="mt-6 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all group"
+                  >
+                    {planExpired ? "Renew plan" : "Explore plans"}
+                    <FiArrowUpRight
+                      size={16}
+                      className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
+                    />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
+      </section>
 
-        {/* Job Preferences */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 space-y-6">
-          <h2 className="text-lg font-semibold">Job Preferences</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Preferred Industry
-              </label>
-              <input
-                type="text"
-                value={industry}
-                onChange={(e) => setIndustry(e.target.value)}
-                placeholder="e.g., Technology, Healthcare, Finance"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-500"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Preferred Role
-              </label>
-              <input
-                type="text"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                placeholder="e.g., Software Engineer, Product Manager"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-500"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Preferred Location
-              </label>
-              <input
-                type="text"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g., London, Remote, New York"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-500"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-4">
-            <button
-              onClick={handleSaveProfile}
-              disabled={isSaving}
-              className="px-6 py-2 text-white font-semibold rounded-lg disabled:opacity-50"
-              style={{ backgroundColor: PRIMARY_COLOR }}
-            >
-              {isSaving ? "Saving..." : "Save Profile & Preferences"}
-            </button>
-          </div>
-        </div>
-
-        {/* Subscription Plans - RENDER ONLY IF NO ACTIVE PLAN */}
-        {!hasActivePlan && (
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h2 className="text-lg font-semibold mb-6">
-              Available Monthly Plans
-            </h2>
-            <SubscriptionPlans
-              plans={plans}
-              currentPlanName={currentPlanName}
-              userDetails={userData || undefined}
-              onSubscriptionSuccess={fetchUserData}
+      {/* Personal summary — read-only view */}
+      <section>
+        <SectionHeader
+          title="Account details"
+          description="Read-only summary. Edit these in the guided setup."
+        />
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 sm:p-7 shadow-sm">
+          <div className="divide-y divide-gray-100">
+            <SummaryRow
+              icon={<FaEnvelope className="text-[11px]" />}
+              label="Primary email"
+              value={userData?.email}
+              complete
+            />
+            <SummaryRow
+              icon={<FaPhone className="text-[11px]" />}
+              label="Phone number"
+              value={userData?.phonenumber}
+              complete={!!userData?.phonenumber}
+            />
+            <SummaryRow
+              icon={<FaEnvelope className="text-[11px]" />}
+              label="Job-hunting email"
+              value={userData?.jobEmail}
+              complete={!!userData?.jobEmail}
+            />
+            <SummaryRow
+              icon={<FaLink className="text-[11px]" />}
+              label="CV link"
+              value={userData?.cv}
+              complete={!!userData?.cv}
+            />
+            <SummaryRow
+              icon={<FaBriefcase className="text-[11px]" />}
+              label="Target roles"
+              value={toArray(userData?.preferredRoles).join(", ") || undefined}
+              complete={toArray(userData?.preferredRoles).length > 0}
+            />
+            <SummaryRow
+              icon={<FaBuilding className="text-[11px]" />}
+              label="Industries"
+              value={
+                toArray(userData?.preferredIndustries).join(", ") || undefined
+              }
+              complete={toArray(userData?.preferredIndustries).length > 0}
+            />
+            <SummaryRow
+              icon={<FaMapMarkerAlt className="text-[11px]" />}
+              label="Locations"
+              value={
+                toArray(userData?.preferredLocations).join(", ") || undefined
+              }
+              complete={toArray(userData?.preferredLocations).length > 0}
             />
           </div>
-        )}
 
-        {/* Active Plan Summary - RENDER ONLY IF ACTIVE PLAN */}
-        {hasActivePlan && (
-          <div className="bg-white rounded-2xl shadow-sm p-6 border-l-4 border-green-500">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Active Subscription Details
-            </h2>
-            <p className="text-base text-gray-700">
-              You are currently on the{" "}
-              <span className="text-green-500">{currentPlanName} </span>plan.
-            </p>
-            <p className="text-sm text-gray-500">
-              Your plan expires on:
-              {new Date(userData!.plan!.expiresAt).toLocaleDateString()}
-            </p>
-          </div>
-        )}
-
-        {/* Mobile Logout Button - Bottom of Screen */}
-        <div className="md:hidden p-6">
-          <div className="flex justify-center">
+          <div className="mt-4 pt-4 border-t border-gray-100">
             <button
-              onClick={handleLogout}
-              className="flex items-center justify-center w-full text-white py-2 rounded-lg transition"
-              style={{ backgroundColor: PRIMARY_COLOR }}
+              onClick={() => navigate("/profile/setup")}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-5 py-2.5 text-sm font-bold shadow-md shadow-green-900/15 transition"
             >
-              <FaSignOutAlt className="mr-2" />
-              <span>Logout</span>
+              Edit in guided setup
+              <FaArrowRight className="text-xs" />
             </button>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

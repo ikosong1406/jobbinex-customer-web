@@ -1,244 +1,340 @@
 import React, { useState, useEffect } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { IoGrid, IoLogOut } from "react-icons/io5";
-import { FaBriefcase, FaUser } from "react-icons/fa";
-import { MdMessage } from "react-icons/md";
-import axios, { AxiosError } from "axios";
+import { IoGridOutline, IoLogOutOutline } from "react-icons/io5";
+import { FaBriefcase, FaUserCircle } from "react-icons/fa";
+import { MdOutlineMessage } from "react-icons/md";
+import { FiChevronRight, FiBell } from "react-icons/fi";
+import axios from "axios";
 import localforage from "localforage";
 import toast from "react-hot-toast";
 import logo from "../assets/logo1.png";
 import Api from "../components/Api";
 
-// --- Type Definitions ---
-interface TabItem {
-  path: string;
-  name: string;
-  icon: React.ReactNode;
-}
+const PRIMARY_COLOR = "#4eaa3c";
 
-interface UserData {
-  firstname: string;
-  lastname: string;
-  email: string;
-  // Include other necessary fields from the API response if needed
-}
+const tabs = [
+  {
+    path: "/dashboard",
+    name: "Overview",
+    icon: <IoGridOutline />,
+    description: "Your workspace",
+  },
+  {
+    path: "/jobs",
+    name: "Jobs",
+    icon: <FaBriefcase />,
+    description: "Manage opportunities",
+  },
+  {
+    path: "/inbox",
+    name: "Inbox",
+    icon: <MdOutlineMessage />,
+    description: "Your conversations",
+  },
+  {
+    path: "/profile",
+    name: "Profile",
+    icon: <FaUserCircle />,
+    description: "Personal information",
+  },
+];
 
-// --- Component Start ---
-const Tab: React.FC = () => {
+const Tab = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [userData, setUserData] = useState<UserData | null>(null);
 
-  // Placeholder for your API endpoint
-  const USER_DATA_ENDPOINT = `${Api}/customer/userdata`; // Example endpoint
-  const PRIMARY_COLOR = "#4eaa3c"; // Define the primary color for reuse
+  const [isMobile, setIsMobile] = useState(false);
+  const [userData, setUserData] = useState(null);
 
-  // 1. Fetch User Data on Component Mount
+  const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         const token = await localforage.getItem("authToken");
 
         if (!token) {
-          toast.error("Session expired or token missing. Please log in.");
-          navigate("/"); // Redirect to login
+          toast.error("Please log in to continue.");
+          navigate("/", { replace: true });
           return;
         }
 
-        const response = await axios.get<UserData>(USER_DATA_ENDPOINT, {
+        const response = await axios.get(USER_DATA_ENDPOINT, {
           headers: {
-            Authorization: `Bearer ${token}`, // Send token in the Authorization header
+            Authorization: `Bearer ${token}`,
           },
         });
 
-        // The response structure directly contains the user data
         setUserData(response.data);
       } catch (error) {
-        const axiosError = error as AxiosError;
-        console.error("User data fetch failed:", axiosError);
+        console.error("User data fetch failed:", error);
 
-        // Handle unauthorized or expired token errors
-        if (
-          axiosError.response?.status === 401 ||
-          axiosError.response?.status === 403
-        ) {
-          toast.error("Your session has expired. Please log in again.");
-          // Force logout and redirect
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          toast.error("Your session has expired.");
           await localforage.removeItem("authToken");
           navigate("/", { replace: true });
         } else {
-          toast.error("Failed to load user data.");
+          toast.error("Unable to load your account information.");
         }
-      } finally {
       }
     };
+
     fetchUserData();
   }, [navigate]);
 
-  // 2. Handle Resize for Mobile/Desktop Toggle
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
     handleResize();
+
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
   }, []);
 
-  const tabs: TabItem[] = [
-    {
-      path: "/customer/dashboard",
-      name: "Overview",
-      icon: <IoGrid size={20} />,
-    },
-    {
-      path: "/customer/jobs",
-      name: "Jobs",
-      icon: <FaBriefcase size={20} />,
-    },
-    { path: "/customer/inbox", name: "Inbox", icon: <MdMessage size={20} /> },
-    { path: "/customer/profile", name: "Profile", icon: <FaUser size={20} /> },
-  ];
-
-  const currentTab: string =
-    tabs.find((tab) => location.pathname.startsWith(tab.path))?.name ||
+  const currentTab =
+    [...tabs]
+      .sort((a, b) => b.path.length - a.path.length)
+      .find((tab) => location.pathname.startsWith(tab.path))?.name ||
     "Dashboard";
 
-  // 3. Handle Logout Functionality
-  const handleLogout = async (): Promise<void> => {
+  const handleLogout = async () => {
     try {
-      // Remove the token from storage
       await localforage.removeItem("authToken");
-      toast.success("You have been logged out.", { duration: 1500 });
-      // Navigate to the login page
+      toast.success("You have been logged out.", {
+        duration: 1500,
+      });
       navigate("/", { replace: true });
     } catch (error) {
       console.error("Logout failed:", error);
-      toast.error("Logout error. Please try clearing your browser storage.");
+      toast.error("Unable to log out. Please try again.");
     }
   };
 
-  // Display user's first name, defaulting to "User" if loading or null
-  const displayFirstName = userData?.firstname || "User";
-  // Display initial for the avatar
-  const displayInitial = displayFirstName.charAt(0).toUpperCase();
+  const firstName = userData?.firstname || "User";
+  const lastName = userData?.lastname || "";
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 
-  // --- Helper component for Avatar/Name Display ---
-  const UserDisplay: React.FC = () => (
-    <div className="flex items-center space-x-3">
-      <div
-        className="w-10 h-10 flex items-center justify-center font-semibold rounded-full"
-        style={{ backgroundColor: PRIMARY_COLOR, color: "white" }}
-      >
-        {displayInitial}
+  const UserDisplay = ({ mobile = false }) => (
+    <div className="flex items-center gap-3">
+      <div className="relative">
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center
+          text-white text-sm font-bold ring-4 ring-[#f3f7f1]"
+          style={{ backgroundColor: PRIMARY_COLOR }}
+        >
+          {initials}
+        </div>
+        <span
+          className="absolute bottom-0 right-0 w-3 h-3 rounded-full
+          bg-emerald-400 border-2 border-white"
+        />
       </div>
-      <div className="text-sm text-gray-700 font-medium">
-        {displayFirstName}
+
+      <div className={mobile ? "hidden sm:block" : ""}>
+        <p className="text-sm font-bold text-gray-800 leading-tight">
+          {firstName} {lastName}
+        </p>
+        <p className="text-xs text-gray-400 mt-1">Client Account</p>
       </div>
     </div>
   );
 
-  // --- Desktop Layout ---
+  // DESKTOP LAYOUT
   if (!isMobile) {
     return (
-      <div className="flex h-screen bg-gray-50 w-full">
-        {/* Sidebar */}
-        <aside className="w-[20%] bg-[#121212] shadow-lg flex flex-col justify-between">
-          <div>
+      <div className="flex h-screen w-full bg-[#f6f8f6] overflow-hidden">
+        {/* SIDEBAR */}
+        <aside
+          className="w-[260px] shrink-0 bg-[#111a14] flex flex-col
+          justify-between relative overflow-hidden"
+        >
+          {/* Decorative background */}
+          <div
+            className="absolute -top-32 -left-32 w-72 h-72
+            bg-[#4eaa3c]/10 rounded-full blur-3xl pointer-events-none"
+          />
+
+          <div className="relative z-10">
             {/* Logo */}
-            <div className="flex items-center mt-8 px-5">
-              <img src={logo} alt="" className="w-[90px]" />
+            <div className="px-8 pt-9 pb-12">
+              <img src={logo} alt="Logo" className="w-[125px] object-contain" />
+              <div className="mt-5 flex items-center gap-2">
+                <span className="w-7 h-[2px] bg-[#4eaa3c]" />
+                <span
+                  className="text-[10px] uppercase tracking-[3px]
+                  text-gray-500 font-semibold"
+                >
+                  Client Portal
+                </span>
+              </div>
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 space-y-1 mt-8">
-              {tabs.map((tab) => (
-                <NavLink
-                  key={tab.path}
-                  to={tab.path}
-                  className={({ isActive }) =>
-                    `w-[85%] flex items-center p-3 transition-colors ${
-                      isActive
-                        ? "text-white font-medium"
-                        : "text-white hover:bg-gray-800"
-                    }`
-                  }
-                  style={({ isActive }) => ({
-                    borderTopRightRadius: 20,
-                    borderBottomRightRadius: 20,
-                    backgroundColor: isActive ? PRIMARY_COLOR : undefined,
-                  })}
-                >
-                  <span className="mr-3">{tab.icon}</span>
-                  {tab.name}
-                </NavLink>
-              ))}
-            </nav>
+            <div className="px-5">
+              <p
+                className="text-[10px] font-bold tracking-[2px]
+                uppercase text-gray-500 mb-5 px-3"
+              >
+                Workspace
+              </p>
+
+              <nav className="space-y-2">
+                {tabs.map((tab) => (
+                  <NavLink
+                    key={tab.path}
+                    to={tab.path}
+                    className={({ isActive }) => `
+                      group flex items-center gap-4 px-4 py-3.5
+                      rounded-xl transition-all duration-300
+                      ${
+                        isActive
+                          ? "bg-[#4eaa3c] text-white shadow-lg shadow-[#4eaa3c]/20"
+                          : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+                      }
+                    `}
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <span
+                          className={`text-xl transition-transform
+                          duration-300 group-hover:scale-110
+                          ${isActive ? "text-white" : "text-gray-500 group-hover:text-[#4eaa3c]"}`}
+                        >
+                          {tab.icon}
+                        </span>
+
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold">{tab.name}</p>
+                          <p
+                            className={`text-[10px] mt-0.5
+                            ${isActive ? "text-white/70" : "text-gray-600"}`}
+                          >
+                            {tab.description}
+                          </p>
+                        </div>
+
+                        {isActive && (
+                          <FiChevronRight className="text-white/80" />
+                        )}
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </nav>
+            </div>
           </div>
 
-          {/* Logout Button */}
-          <div className="p-5">
+          {/* Sidebar Footer */}
+          <div className="relative z-10 p-5">
             <button
               onClick={handleLogout}
-              className="flex items-center justify-center w-full text-white py-2 rounded-lg transition"
-              style={{ backgroundColor: PRIMARY_COLOR }}
+              className="flex items-center gap-3 w-full px-4 py-3
+                text-gray-400 hover:text-red-400 hover:bg-red-500/10
+                rounded-xl transition-all duration-300 text-sm font-medium"
             >
-              <IoLogOut size={18} className="mr-2" />
-              Logout
+              <IoLogOutOutline size={20} />
+              Sign out
             </button>
+
+            <p className="text-[10px] text-gray-600 text-center mt-5">
+              © {new Date().getFullYear()} All rights reserved.
+            </p>
           </div>
         </aside>
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-auto">
-          {/* Header */}
-          <header className="flex items-center justify-between px-6 py-4 bg-white border-b shadow-sm">
-            <h1 className="text-xl font-bold text-gray-800">{currentTab}</h1>
-            <UserDisplay />
+        {/* MAIN AREA */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          {/* HEADER */}
+          <header
+            className="h-[82px] shrink-0 bg-[white] border-b
+            border-gray-100 flex items-center justify-between px-8 lg:px-10"
+          >
+            <div>
+              <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+                <span>Workspace</span>
+                <FiChevronRight size={12} />
+                <span className="text-[#4eaa3c] font-semibold">
+                  {currentTab}
+                </span>
+              </div>
+
+              <h1 className="text-xl font-bold text-[#17231a]">{currentTab}</h1>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <UserDisplay />
+            </div>
           </header>
 
-          {/* Page Content */}
-          <main className="flex-1 overflow-auto p-4">
-            <Outlet />
+          {/* PAGE CONTENT */}
+          <main className="flex-1 overflow-y-auto p-4 lg:p-10">
+            <div className="max-w-[1600px] mx-auto">
+              <Outlet />
+            </div>
           </main>
         </div>
       </div>
     );
   }
 
-  // --- Mobile Layout ---
+  // MOBILE LAYOUT
   return (
-    <div className="flex flex-col h-screen w-full">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 bg-white border-b shadow-sm">
-        <h1 className="text-xl font-bold text-gray-800">{currentTab}</h1>
-        <UserDisplay /> {/* Using UserDisplay component here */}
+    <div className="min-h-screen bg-[#f6f8f6] flex flex-col">
+      {/* MOBILE HEADER */}
+      <header
+        className="sticky top-0 z-40 bg-[#111a14]
+        backdrop-blur-xl border-b border-gray-100 px-5 py-4"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src={logo} alt="Logo" className="w-[90px] object-contain" />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 flex items-center justify-center
+              rounded-full text-white text-xs font-bold"
+              style={{ backgroundColor: PRIMARY_COLOR }}
+            >
+              {initials}
+            </div>
+          </div>
+        </div>
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto pb-16">
-        <main className="p-4">
-          <Outlet />
-        </main>
-      </div>
+      {/* CONTENT */}
+      <main className="flex-1 p-2 pb-28 overflow-x-hidden">
+        <Outlet />
+      </main>
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#121212] shadow-lg border-t border-gray-700">
-        <nav className="flex justify-around items-center">
+      {/* FLOATING BOTTOM NAVIGATION */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4">
+        <nav
+          className="max-w-lg mx-auto flex items-center justify-around
+          bg-[#111a14] rounded-2xl shadow-2xl shadow-black/20
+          border border-white/10 px-2 py-2"
+        >
           {tabs.map((tab) => (
             <NavLink
               key={tab.path}
               to={tab.path}
-              className={({ isActive }) =>
-                `flex flex-col items-center justify-center py-2 px-4 w-full ${
-                  isActive ? "text-white" : "text-gray-400"
-                }`
-              }
-              style={({ isActive }) => ({
-                color: isActive ? PRIMARY_COLOR : undefined,
-              })}
+              className={({ isActive }) => `
+                flex flex-col items-center justify-center gap-1
+                flex-1 py-2.5 rounded-xl transition-all duration-300
+                ${
+                  isActive
+                    ? "bg-[#4eaa3c] text-white"
+                    : "text-gray-500 hover:text-white"
+                }
+              `}
             >
-              <span className="mb-1">{tab.icon}</span>
-              <span className="text-xs">{tab.name}</span>
+              <span className="text-xl">{tab.icon}</span>
+              <span className="text-[10px] font-semibold">{tab.name}</span>
             </NavLink>
           ))}
         </nav>

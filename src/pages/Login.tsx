@@ -94,7 +94,7 @@ const Login: React.FC = () => {
       toast.success(message || "Login successful!", { duration: 3000 });
 
       // 3. Navigate to the customer dashboard
-      navigate("/customer");
+      navigate("/dashboard");
     } catch (error) {
       const axiosError = error as AxiosError;
 
