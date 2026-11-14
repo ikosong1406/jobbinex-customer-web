@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import {
   BarChart,
@@ -46,6 +47,13 @@ interface Assistant {
   status?: string;
 }
 
+interface Plan {
+  status?: string;
+  expiryDate?: string;
+  expiresAt?: string;
+  endDate?: string;
+}
+
 interface UserData {
   firstname?: string;
   lastname?: string;
@@ -58,7 +66,7 @@ interface UserData {
   jobs?: Job[];
   assistant?: Assistant | null;
   notifications?: unknown[];
-  plan?: unknown;
+  plan?: Plan | null;
 }
 
 interface WeeklyApplication {
@@ -85,7 +93,7 @@ interface DashboardData {
   assistant: Assistant | null;
   notifications: unknown[];
   statusCounts: StatusCounts;
-  plan: unknown;
+  plan: Plan | null;
 }
 
 const isValidDate = (value: unknown): value is string | Date => {
@@ -155,6 +163,29 @@ const getAssistantInitials = (assistant: Assistant | null): string => {
   return `${assistant.firstname?.charAt(0) || ""}${assistant.lastname?.charAt(0) || ""}`.toUpperCase() || "?";
 };
 
+// SUBSCRIPTION VALIDATION
+const hasActiveSubscription = (plan: Plan | null): boolean => {
+  if (!plan) return false;
+
+  const status = normalizeStatus(plan.status);
+
+  if (status !== "active") return false;
+
+  const expiryDate =
+    plan.expiryDate ||
+    plan.expiresAt ||
+    plan.endDate;
+
+  // If no expiry date exists, rely on the backend active status.
+  if (!expiryDate) return true;
+
+  const expiry = new Date(expiryDate);
+
+  if (Number.isNaN(expiry.getTime())) return false;
+
+  return expiry.getTime() > Date.now();
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
 
@@ -175,34 +206,41 @@ const Dashboard = () => {
           return;
         }
 
-        const response = await axios.get<UserData | { user?: UserData; data?: UserData }>(
-          USER_DATA_ENDPOINT,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
+        const response = await axios.get<
+          UserData | { user?: UserData; data?: UserData }
+        >(USER_DATA_ENDPOINT, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
         if (!mounted) return;
 
-        // Support both a direct user object and common API response wrappers.
         const payload = response.data;
+
         const user: UserData =
           ("user" in payload && payload.user) ||
           ("data" in payload && payload.data) ||
           (payload as UserData);
 
         const jobs = Array.isArray(user.jobs) ? user.jobs : [];
-        const totalApplications = jobs.filter((job) => isValidDate(job.appliedDate)).length;
+
+        const totalApplications = jobs.filter(
+          (job) => isValidDate(job.appliedDate)
+        ).length;
 
         const now = new Date();
+
         const upcomingInterviews = jobs.reduce((count, job) => {
-          if (normalizeStatus(job.status) !== "interviewing" || !Array.isArray(job.interviewDates)) {
+          if (
+            normalizeStatus(job.status) !== "interviewing" ||
+            !Array.isArray(job.interviewDates)
+          ) {
             return count;
           }
 
           const upcomingCount = job.interviewDates.filter(
             (interview) =>
-              isValidDate(interview?.date) && new Date(interview.date) > now,
+              isValidDate(interview?.date) &&
+              new Date(interview.date) > now
           ).length;
 
           return count + upcomingCount;
@@ -216,17 +254,23 @@ const Dashboard = () => {
           profileCompletion: calculateProfileCompletion(user),
           weeklyApplications: getWeeklyApplicationsData(jobs),
           assistant: user.assistant || null,
-          notifications: Array.isArray(user.notifications) ? user.notifications : [],
+          notifications: Array.isArray(user.notifications)
+            ? user.notifications
+            : [],
           statusCounts: getStatusCounts(jobs),
-          plan: user.plan ?? null,
+          plan: user.plan || null,
         });
       } catch (error: unknown) {
         console.error("Dashboard data fetch failed:", error);
 
         if (!mounted) return;
 
-        if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status || 0)) {
+        if (
+          axios.isAxiosError(error) &&
+          [401, 403].includes(error.response?.status || 0)
+        ) {
           toast.error("Your session has expired. Please log in again.");
+
           await localforage.removeItem("authToken");
 
           if (mounted) navigate("/", { replace: true });
@@ -256,10 +300,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center">
-        <div
-          className="w-12 h-12 border-4 border-gray-200
-          border-t-[#4eaa3c] rounded-full animate-spin"
-        />
+        <div className="w-12 h-12 border-4 border-gray-200 border-t-[#4eaa3c] rounded-full animate-spin" />
         <p className="text-sm text-gray-500 mt-4">
           Preparing your dashboard...
         </p>
@@ -273,39 +314,26 @@ const Dashboard = () => {
 
   const weeklyTotal = data.weeklyApplications.reduce(
     (sum, item) => sum + item.applications,
-    0,
+    0
   );
 
   const firstName = data.userName;
-
-  // --------------------------------------------------
-  // RENDER
-  // --------------------------------------------------
+  const subscriptionActive = hasActiveSubscription(data.plan);
+  const hasAssistant = Boolean(data.assistant);
 
   return (
     <div className="w-full max-w-[1600px] mx-auto space-y-6 p-2">
-      {/* ==========================================
-          WELCOME HEADER
-      ========================================== */}
 
-      <section
-        className="flex flex-row
-        sm:items-center justify-between gap-4"
-      >
+      {/* WELCOME HEADER */}
+
+      <section className="flex flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1
-            className="text-2xl sm:text-3xl font-bold
-            text-[#17231a] tracking-tight mt-2"
-          >
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#17231a] tracking-tight mt-2">
             Welcome, {firstName}!
           </h1>
         </div>
 
-        <div
-          className="flex items-center gap-2 text-xs
-          text-gray-500 bg-white border border-gray-100
-          rounded-xl px-4 py-3 shadow-sm w-fit"
-        >
+        <div className="flex items-center gap-2 text-xs text-gray-500 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm w-fit">
           <FaRegCalendarAlt className="text-[#4eaa3c]" />
 
           {new Date().toLocaleDateString("en-US", {
@@ -317,40 +345,25 @@ const Dashboard = () => {
         </div>
       </section>
 
-      {/* ==========================================
-          PRIORITY ACTIONS
-          PROFILE + SUBSCRIPTION
-      ========================================== */}
+      {/* PRIORITY ACTIONS */}
 
       <section>
         <div className="flex items-center gap-2 mb-4">
           <span className="w-1 h-5 bg-[#4eaa3c] rounded-full" />
-
           <h2 className="font-bold text-gray-900 text-lg">Your next steps</h2>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
           {/* PROFILE COMPLETION CARD */}
 
-          <div
-            className="relative overflow-hidden bg-white
-            border border-gray-200 rounded-2xl p-6
-            shadow-sm hover:shadow-lg transition-all duration-300"
-          >
-            <div
-              className="absolute top-0 right-0 w-36 h-36
-              bg-emerald-50 rounded-full blur-3xl opacity-70
-              pointer-events-none"
-            />
+          <div className="relative overflow-hidden bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300">
+            <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-50 rounded-full blur-3xl opacity-70 pointer-events-none" />
 
             <div className="relative z-10">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-12 h-12 rounded-xl
-                    bg-emerald-50 text-[#4eaa3c]
-                    flex items-center justify-center"
-                  >
+                  <div className="w-12 h-12 rounded-xl bg-emerald-50 text-[#4eaa3c] flex items-center justify-center">
                     <FaUserEdit size={21} />
                   </div>
 
@@ -359,14 +372,11 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                <span
-                  className={`text-xs font-bold px-3 py-1.5
-                  rounded-full ${
-                    data.profileCompletion === 100
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-amber-50 text-amber-700"
-                  }`}
-                >
+                <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+                  data.profileCompletion === 100
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-amber-50 text-amber-700"
+                }`}>
                   {data.profileCompletion === 100
                     ? "Completed"
                     : "Action needed"}
@@ -380,10 +390,7 @@ const Dashboard = () => {
                       Profile completion
                     </p>
 
-                    <h2
-                      className="text-3xl font-extrabold
-                      text-[#17231a] mt-1"
-                    >
+                    <h2 className="text-3xl font-extrabold text-[#17231a] mt-1">
                       {data.profileCompletion}
                       <span className="text-lg text-gray-400">%</span>
                     </h2>
@@ -401,10 +408,7 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div
-                className="mt-6 flex flex-col sm:flex-row
-                sm:items-center justify-between gap-4"
-              >
+              <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <p className="text-xs text-gray-500">
                   {data.profileCompletion === 100
                     ? "Your profile is fully set up."
@@ -413,11 +417,7 @@ const Dashboard = () => {
 
                 <button
                   onClick={handleCompleteProfile}
-                  className="inline-flex items-center justify-center
-                    gap-2 bg-[#17231a] hover:bg-[#263d2a]
-                    text-white px-5 py-3 rounded-xl text-sm
-                    font-semibold transition-all duration-300
-                    whitespace-nowrap"
+                  className="inline-flex items-center justify-center gap-2 bg-[#17231a] hover:bg-[#263d2a] text-white px-5 py-3 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap"
                 >
                   {data.profileCompletion === 100
                     ? "View Profile"
@@ -429,37 +429,25 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* SUBSCRIPTION / ASSISTANT ACTIVATION CARD */}
+          {/* SUBSCRIPTION / ASSISTANT CARD */}
 
-          <div
-            className="relative overflow-hidden bg-[#14251a]
-            rounded-2xl p-6 text-white shadow-lg
-            shadow-green-950/10"
-          >
-            {/* Decorative background */}
-            <div
-              className="absolute -right-12 -top-16
-              w-64 h-64 rounded-full bg-[#4eaa3c]/20
-              blur-3xl pointer-events-none"
-            />
+          <div className="relative overflow-hidden bg-[#14251a] rounded-2xl p-6 text-white shadow-lg shadow-green-950/10">
 
-            <div
-              className="absolute right-0 bottom-0
-              opacity-[0.07] pointer-events-none"
-            >
+            <div className="absolute -right-12 -top-16 w-64 h-64 rounded-full bg-[#4eaa3c]/20 blur-3xl pointer-events-none" />
+
+            <div className="absolute right-0 bottom-0 opacity-[0.07] pointer-events-none">
               <FaUserTie size={180} />
             </div>
 
             <div className="relative z-10">
-              {data.assistant ? (
+
+              {/* ASSISTANT + ACTIVE SUBSCRIPTION */}
+
+              {hasAssistant && subscriptionActive ? (
                 <>
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-12 h-12 rounded-xl
-                        bg-white/10 flex items-center
-                        justify-center text-[#8cdb78]"
-                      >
+                      <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-[#8cdb78]">
                         <FaUserTie size={22} />
                       </div>
 
@@ -470,31 +458,23 @@ const Dashboard = () => {
                       </div>
                     </div>
 
-                    <span
-                      className="bg-emerald-400/10
-                      text-emerald-300 text-xs font-bold
-                      px-3 py-1.5 rounded-full"
-                    >
+                    <span className="bg-emerald-400/10 text-emerald-300 text-xs font-bold px-3 py-1.5 rounded-full">
                       Active
                     </span>
                   </div>
 
                   <div className="flex items-center gap-3 mt-7">
-                    <div
-                      className="w-12 h-12 rounded-full
-                      bg-[#4eaa3c] flex items-center
-                      justify-center text-white font-bold"
-                    >
+                    <div className="w-12 h-12 rounded-full bg-[#4eaa3c] flex items-center justify-center text-white font-bold">
                       {getAssistantInitials(data.assistant)}
                     </div>
 
                     <div>
                       <h4 className="font-semibold">
-                        {data.assistant.firstname} {data.assistant.lastname}
+                        {data.assistant?.firstname} {data.assistant?.lastname}
                       </h4>
 
                       <p className="text-xs text-gray-400 mt-1">
-                        {data.assistant.status === "online"
+                        {data.assistant?.status === "online"
                           ? "Available now"
                           : "Currently unavailable"}
                       </p>
@@ -504,25 +484,74 @@ const Dashboard = () => {
                   <div className="mt-6">
                     <button
                       onClick={() => navigate("/jobs")}
-                      className="inline-flex items-center gap-2
-                        bg-[#4eaa3c] hover:bg-[#60bb4d]
-                        text-white px-5 py-3 rounded-xl
-                        text-sm font-semibold transition"
+                      className="inline-flex items-center gap-2 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-5 py-3 rounded-xl text-sm font-semibold transition"
                     >
                       View Job Applications
                       <FaArrowRight size={13} />
                     </button>
                   </div>
                 </>
-              ) : (
+              ) : hasAssistant && !subscriptionActive ? (
+
+                /* ASSISTANT EXISTS BUT NO ACTIVE SUBSCRIPTION */
+
                 <>
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-12 h-12 rounded-xl
-                        bg-[#4eaa3c]/20 flex items-center
-                        justify-center text-[#8cdb78]"
-                      >
+                      <div className="w-12 h-12 rounded-xl bg-amber-400/10 flex items-center justify-center text-amber-300">
+                        <FaUserTie size={22} />
+                      </div>
+
+                      <div>
+                        <h3 className="font-bold text-white">
+                          Subscription Required
+                        </h3>
+
+                        <p className="text-xs text-gray-400 mt-1">
+                          Your assistant is assigned to you.
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="bg-amber-400/10 text-amber-300 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
+                      Inactive
+                    </span>
+                  </div>
+
+                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
+                    {data.plan
+                      ? "Your subscription has expired."
+                      : "Activate your subscription."}
+                  </h2>
+
+                  <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
+                    Your job assistant is assigned, but you need an active
+                    subscription to continue using our job application
+                    services. Subscribe or renew your plan to reactivate
+                    your service.
+                  </p>
+
+                  <button
+                    onClick={handleSubscribe}
+                    className="mt-6 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all duration-300 group"
+                  >
+                    {data.plan ? "Renew Subscription" : "Subscribe Now"}
+
+                    <FiArrowUpRight
+                      size={18}
+                      className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
+                    />
+                  </button>
+                </>
+
+              ) : (
+
+                /* NO ASSISTANT */
+
+                <>
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-[#4eaa3c]/20 flex items-center justify-center text-[#8cdb78]">
                         <FaRocket size={22} />
                       </div>
 
@@ -533,26 +562,16 @@ const Dashboard = () => {
                       </div>
                     </div>
 
-                    <span
-                      className="bg-amber-400/10
-                      text-amber-300 text-xs font-bold
-                      px-3 py-1.5 rounded-full whitespace-nowrap"
-                    >
+                    <span className="bg-amber-400/10 text-amber-300 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
                       Not activated
                     </span>
                   </div>
 
-                  <h2
-                    className="text-xl sm:text-2xl font-bold
-                    mt-6 leading-snug max-w-md"
-                  >
+                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
                     Let your next career opportunity find you.
                   </h2>
 
-                  <p
-                    className="text-sm text-gray-400 mt-2
-                    leading-relaxed max-w-md"
-                  >
+                  <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
                     Unlock your personal job assistant to help manage
                     applications, track opportunities and stay on top of
                     interviews.
@@ -560,49 +579,34 @@ const Dashboard = () => {
 
                   <button
                     onClick={handleSubscribe}
-                    className="mt-6 inline-flex items-center
-                      justify-center gap-3 bg-[#4eaa3c]
-                      hover:bg-[#60bb4d] text-white
-                      px-6 py-3.5 rounded-xl text-sm
-                      font-bold shadow-lg shadow-black/20
-                      transition-all duration-300 group"
+                    className="mt-6 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all duration-300 group"
                   >
                     Explore Subscription Plans
+
                     <FiArrowUpRight
                       size={18}
-                      className="group-hover:translate-x-1
-                        group-hover:-translate-y-1 transition"
+                      className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
                     />
                   </button>
                 </>
               )}
+
             </div>
           </div>
         </div>
       </section>
 
-      {/* ==========================================
-          ACTIVITY + ASSISTANT / STATUS
-      ========================================== */}
+      {/* ACTIVITY + APPLICATION STATUS */}
 
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+
         {/* WEEKLY APPLICATION CHART */}
 
-        <div
-          className="xl:col-span-2 bg-white border
-          border-gray-100 rounded-2xl p-5 sm:p-7
-          shadow-sm"
-        >
-          <div
-            className="flex flex-col sm:flex-row
-            sm:items-center justify-between gap-3 mb-7"
-          >
+        <div className="xl:col-span-2 bg-white border border-gray-100 rounded-2xl p-5 sm:p-7 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-7">
             <div>
               <div className="flex items-center gap-2">
-                <div
-                  className="w-9 h-9 rounded-lg bg-emerald-50
-                  text-[#4eaa3c] flex items-center justify-center"
-                >
+                <div className="w-9 h-9 rounded-lg bg-emerald-50 text-[#4eaa3c] flex items-center justify-center">
                   <FaChartLine />
                 </div>
 
@@ -616,15 +620,14 @@ const Dashboard = () => {
               </p>
             </div>
 
-            <div
-              className="bg-emerald-50 rounded-xl
-              px-4 py-2 w-fit"
-            >
+            <div className="bg-emerald-50 rounded-xl px-4 py-2 w-fit">
               <p className="text-[10px] text-gray-500">
                 This week's applications
               </p>
 
-              <p className="text-xl font-bold text-[#347c28]">{weeklyTotal}</p>
+              <p className="text-xl font-bold text-[#347c28]">
+                {weeklyTotal}
+              </p>
             </div>
           </div>
 
@@ -634,11 +637,7 @@ const Dashboard = () => {
                 data={data.weeklyApplications}
                 margin={{ top: 10, right: 5, left: -25, bottom: 0 }}
               >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#f0f2f0"
-                />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f2f0" />
 
                 <XAxis
                   dataKey="day"
@@ -675,15 +674,8 @@ const Dashboard = () => {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div
-              className="h-[270px] flex flex-col
-              items-center justify-center text-center"
-            >
-              <div
-                className="w-14 h-14 rounded-full
-                bg-gray-50 flex items-center justify-center
-                text-gray-300 mb-4"
-              >
+            <div className="h-[270px] flex flex-col items-center justify-center text-center">
+              <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 mb-4">
                 <FaChartLine size={23} />
               </div>
 
@@ -700,11 +692,10 @@ const Dashboard = () => {
 
         {/* APPLICATION STATUS SUMMARY */}
 
-        <div
-          className="bg-white border border-gray-100
-          rounded-2xl p-6 shadow-sm"
-        >
-          <h2 className="font-bold text-gray-900">Application Status</h2>
+        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+          <h2 className="font-bold text-gray-900">
+            Application Status
+          </h2>
 
           <p className="text-xs text-gray-400 mt-1 mb-7">
             Breakdown of your applications
@@ -743,10 +734,7 @@ const Dashboard = () => {
             },
           ].map((item) => (
             <div key={item.label} className="mb-5 last:mb-0">
-              <div
-                className="flex justify-between
-                items-center text-xs mb-2"
-              >
+              <div className="flex justify-between items-center text-xs mb-2">
                 <div className="flex items-center gap-2">
                   <span
                     className="w-2.5 h-2.5 rounded-full"
@@ -758,7 +746,9 @@ const Dashboard = () => {
                   </span>
                 </div>
 
-                <span className="font-bold text-gray-900">{item.value}</span>
+                <span className="font-bold text-gray-900">
+                  {item.value}
+                </span>
               </div>
 
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
