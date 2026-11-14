@@ -525,7 +525,7 @@ const Profile: React.FC = () => {
 
           <div className="mt-4 pt-4 border-t border-gray-100">
             <button
-              onClick={() => navigate("/profile/setup")}
+              onClick={() => navigate("/setup")}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-5 py-2.5 text-sm font-bold shadow-md shadow-green-900/15 transition"
             >
               Edit in guided setup

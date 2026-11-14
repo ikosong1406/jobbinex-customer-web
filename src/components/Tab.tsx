@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
+import type { ReactNode } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { IoGridOutline, IoLogOutOutline } from "react-icons/io5";
 import { FaBriefcase, FaUserCircle } from "react-icons/fa";
 import { MdOutlineMessage } from "react-icons/md";
-import { FiChevronRight, FiBell } from "react-icons/fi";
+import { FiChevronRight } from "react-icons/fi";
 import axios from "axios";
 import localforage from "localforage";
 import toast from "react-hot-toast";
@@ -11,8 +12,29 @@ import logo from "../assets/logo1.png";
 import Api from "../components/Api";
 
 const PRIMARY_COLOR = "#4eaa3c";
+const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
 
-const tabs = [
+interface ClientUserData {
+  firstname?: string;
+  lastname?: string;
+  [key: string]: unknown;
+}
+
+interface UserDataResponse {
+  firstname?: string;
+  lastname?: string;
+  user?: ClientUserData;
+  data?: ClientUserData | { user?: ClientUserData };
+}
+
+interface TabItem {
+  path: string;
+  name: string;
+  icon: ReactNode;
+  description: string;
+}
+
+const tabs: TabItem[] = [
   {
     path: "/dashboard",
     name: "Overview",
@@ -43,43 +65,73 @@ const Tab = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [isMobile, setIsMobile] = useState(false);
-  const [userData, setUserData] = useState(null);
-
-  const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 768
+  );
+  const [userData, setUserData] = useState<ClientUserData | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchUserData = async () => {
       try {
-        const token = await localforage.getItem("authToken");
+        const token = await localforage.getItem<string>("authToken");
 
         if (!token) {
-          toast.error("Please log in to continue.");
-          navigate("/", { replace: true });
+          if (isMounted) {
+            toast.error("Please log in to continue.");
+            navigate("/", { replace: true });
+          }
           return;
         }
 
-        const response = await axios.get(USER_DATA_ENDPOINT, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await axios.get<UserDataResponse>(
+          USER_DATA_ENDPOINT,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
-        setUserData(response.data);
-      } catch (error) {
+        // Support APIs returning the user directly or nested in user/data.
+        const payload = response.data;
+        const nestedData =
+          payload?.data && typeof payload.data === "object"
+            ? payload.data
+            : undefined;
+
+        const resolvedUser =
+          payload?.user ??
+          (nestedData && "user" in nestedData
+            ? nestedData.user
+            : nestedData) ??
+          payload;
+
+        if (isMounted && resolvedUser && typeof resolvedUser === "object") {
+          setUserData(resolvedUser as ClientUserData);
+        }
+      } catch (error: unknown) {
         console.error("User data fetch failed:", error);
 
-        if (error.response?.status === 401 || error.response?.status === 403) {
+        if (!isMounted) return;
+
+        if (
+          axios.isAxiosError(error) &&
+          (error.response?.status === 401 || error.response?.status === 403)
+        ) {
           toast.error("Your session has expired.");
           await localforage.removeItem("authToken");
-          navigate("/", { replace: true });
+          if (isMounted) navigate("/", { replace: true });
         } else {
           toast.error("Unable to load your account information.");
         }
       }
     };
 
-    fetchUserData();
+    void fetchUserData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [navigate]);
 
   useEffect(() => {
@@ -88,38 +140,40 @@ const Tab = () => {
     };
 
     handleResize();
-
     window.addEventListener("resize", handleResize);
 
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const currentTab =
     [...tabs]
       .sort((a, b) => b.path.length - a.path.length)
-      .find((tab) => location.pathname.startsWith(tab.path))?.name ||
-    "Dashboard";
+      .find(
+        (tab) =>
+          location.pathname === tab.path ||
+          location.pathname.startsWith(`${tab.path}/`)
+      )?.name || "Dashboard";
 
-  const handleLogout = async () => {
+  const handleLogout = async (): Promise<void> => {
     try {
       await localforage.removeItem("authToken");
-      toast.success("You have been logged out.", {
-        duration: 1500,
-      });
+      toast.success("You have been logged out.", { duration: 1500 });
       navigate("/", { replace: true });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Logout failed:", error);
       toast.error("Unable to log out. Please try again.");
     }
   };
 
-  const firstName = userData?.firstname || "User";
-  const lastName = userData?.lastname || "";
+  const firstName =
+    typeof userData?.firstname === "string" && userData.firstname.trim()
+      ? userData.firstname.trim()
+      : "User";
+  const lastName =
+    typeof userData?.lastname === "string" ? userData.lastname.trim() : "";
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 
-  const UserDisplay = ({ mobile = false }) => (
+  const UserDisplay = ({ mobile = false }: { mobile?: boolean }) => (
     <div className="flex items-center gap-3">
       <div className="relative">
         <div
@@ -188,6 +242,7 @@ const Tab = () => {
                   <NavLink
                     key={tab.path}
                     to={tab.path}
+                    end
                     className={({ isActive }) => `
                       group flex items-center gap-4 px-4 py-3.5
                       rounded-xl transition-all duration-300
@@ -323,6 +378,7 @@ const Tab = () => {
             <NavLink
               key={tab.path}
               to={tab.path}
+              end
               className={({ isActive }) => `
                 flex flex-col items-center justify-center gap-1
                 flex-1 py-2.5 rounded-xl transition-all duration-300

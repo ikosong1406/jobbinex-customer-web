@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -14,55 +14,101 @@ import localforage from "localforage";
 import toast from "react-hot-toast";
 
 import {
-  FaBriefcase,
   FaUserTie,
-  FaCheckCircle,
-  FaClock,
-  FaTimesCircle,
-  FaTrophy,
   FaUserEdit,
   FaArrowRight,
-  FaRegBell,
   FaRegCalendarAlt,
   FaRocket,
   FaChartLine,
 } from "react-icons/fa";
 
-import {
-  FiArrowUpRight,
-  FiCheck,
-  FiChevronRight,
-  FiUser,
-} from "react-icons/fi";
-
-import { MdOutlineMessage } from "react-icons/md";
+import { FiArrowUpRight } from "react-icons/fi";
 import Api from "../components/Api";
 
 const PRIMARY_COLOR = "#4eaa3c";
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
 
-const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
-// --------------------------------------------------
-// DASHBOARD DATA HELPERS
-// --------------------------------------------------
+interface InterviewDate {
+  date?: string | Date;
+}
 
-const getWeeklyApplicationsData = (jobs = []) => {
+interface Job {
+  status?: string;
+  appliedDate?: string | Date | null;
+  interviewDates?: InterviewDate[];
+}
+
+interface Assistant {
+  firstname?: string;
+  lastname?: string;
+  status?: string;
+}
+
+interface UserData {
+  firstname?: string;
+  lastname?: string;
+  phonenumber?: string;
+  jobEmail?: string;
+  cv?: string;
+  preferredIndustries?: unknown[];
+  preferredRoles?: unknown[];
+  preferredLocations?: unknown[];
+  jobs?: Job[];
+  assistant?: Assistant | null;
+  notifications?: unknown[];
+  plan?: unknown;
+}
+
+interface WeeklyApplication {
+  day: string;
+  applications: number;
+}
+
+interface StatusCounts {
+  applied: number;
+  interviewing: number;
+  offerReceived: number;
+  hired: number;
+  rejected: number;
+  pending: number;
+}
+
+interface DashboardData {
+  userName: string;
+  jobs: Job[];
+  totalApplications: number;
+  upcomingInterviews: number;
+  profileCompletion: number;
+  weeklyApplications: WeeklyApplication[];
+  assistant: Assistant | null;
+  notifications: unknown[];
+  statusCounts: StatusCounts;
+  plan: unknown;
+}
+
+const isValidDate = (value: unknown): value is string | Date => {
+  if (!(typeof value === "string" || value instanceof Date)) return false;
+  return !Number.isNaN(new Date(value).getTime());
+};
+
+const getWeeklyApplicationsData = (jobs: Job[] = []): WeeklyApplication[] => {
   const now = new Date();
   const startOfWeek = new Date(now);
 
   startOfWeek.setDate(now.getDate() - now.getDay());
   startOfWeek.setHours(0, 0, 0, 0);
 
-  const applicationsByDay = [0, 0, 0, 0, 0, 0, 0];
+  const applicationsByDay = Array<number>(7).fill(0);
 
   jobs.forEach((job) => {
-    if (!job.appliedDate) return;
+    if (!isValidDate(job.appliedDate)) return;
 
     const appliedDate = new Date(job.appliedDate);
 
     if (appliedDate >= startOfWeek && appliedDate <= now) {
-      applicationsByDay[appliedDate.getDay()]++;
+      applicationsByDay[appliedDate.getDay()] += 1;
     }
   });
 
@@ -72,170 +118,118 @@ const getWeeklyApplicationsData = (jobs = []) => {
   }));
 };
 
-const calculateProfileCompletion = (user) => {
+const calculateProfileCompletion = (user: UserData): number => {
   const totalFields = 5;
   let completedFields = 0;
 
-  if (user.phonenumber) completedFields++;
-  if (user.jobEmail) completedFields++;
-  if (user.cv) completedFields++;
+  if (user.phonenumber) completedFields += 1;
+  if (user.jobEmail) completedFields += 1;
+  if (user.cv) completedFields += 1;
 
-  if (
-    (user.preferredIndustries || []).length > 0 ||
-    (user.preferredRoles || []).length > 0 ||
-    (user.preferredLocations || []).length > 0
-  ) {
-    completedFields++;
-  }
+  const hasPreferences =
+    (Array.isArray(user.preferredIndustries) && user.preferredIndustries.length > 0) ||
+    (Array.isArray(user.preferredRoles) && user.preferredRoles.length > 0) ||
+    (Array.isArray(user.preferredLocations) && user.preferredLocations.length > 0);
 
-  if (user.lastname) completedFields++;
+  if (hasPreferences) completedFields += 1;
+  if (user.lastname) completedFields += 1;
 
   return Math.round((completedFields / totalFields) * 100);
 };
 
-const getStatusCounts = (jobs = []) => ({
-  applied: jobs.filter((job) => job.status === "Applied").length,
-  interviewing: jobs.filter((job) => job.status === "Interviewing").length,
-  offerReceived: jobs.filter((job) => job.status === "Offer Received").length,
-  hired: jobs.filter((job) => job.status === "Hired").length,
-  rejected: jobs.filter((job) => job.status === "Rejected").length,
-  pending: jobs.filter((job) => job.status === "Pending").length,
+const normalizeStatus = (status?: string): string =>
+  (status || "").trim().toLowerCase().replace(/[_-]+/g, " ");
+
+const getStatusCounts = (jobs: Job[] = []): StatusCounts => ({
+  applied: jobs.filter((job) => normalizeStatus(job.status) === "applied").length,
+  interviewing: jobs.filter((job) => normalizeStatus(job.status) === "interviewing").length,
+  offerReceived: jobs.filter((job) => normalizeStatus(job.status) === "offer received").length,
+  hired: jobs.filter((job) => normalizeStatus(job.status) === "hired").length,
+  rejected: jobs.filter((job) => normalizeStatus(job.status) === "rejected").length,
+  pending: jobs.filter((job) => normalizeStatus(job.status) === "pending").length,
 });
 
-const getAssistantInitials = (assistant) => {
+const getAssistantInitials = (assistant: Assistant | null): string => {
   if (!assistant) return "?";
 
-  return `${assistant.firstname?.charAt(0) || ""}${assistant.lastname?.charAt(0) || ""}`.toUpperCase();
+  return `${assistant.firstname?.charAt(0) || ""}${assistant.lastname?.charAt(0) || ""}`.toUpperCase() || "?";
 };
-
-const formatDate = (date) => {
-  if (!date) return "Recently";
-
-  return new Date(date).toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-};
-
-// --------------------------------------------------
-// STAT CARD
-// --------------------------------------------------
-
-const StatCard = ({
-  title,
-  value,
-  description,
-  icon: Icon,
-  iconColor,
-  iconBg,
-}) => (
-  <div
-    className="bg-white border border-gray-100 rounded-2xl p-5
-    hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
-  >
-    <div className="flex justify-between items-start">
-      <div>
-        <p className="text-sm font-medium text-gray-500">{title}</p>
-
-        <h3 className="text-3xl font-bold text-[#18251b] mt-3 tracking-tight">
-          {value}
-        </h3>
-      </div>
-
-      <div
-        className={`w-11 h-11 rounded-xl flex items-center
-        justify-center ${iconBg}`}
-      >
-        <Icon className={iconColor} size={19} />
-      </div>
-    </div>
-
-    <p className="text-xs text-gray-400 mt-4">{description}</p>
-  </div>
-);
-
-// --------------------------------------------------
-// MAIN DASHBOARD
-// --------------------------------------------------
 
 const Dashboard = () => {
   const navigate = useNavigate();
 
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // --------------------------------------------------
-  // FETCH USER DATA
-  // --------------------------------------------------
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     let mounted = true;
 
-    const fetchUserData = async () => {
+    const fetchUserData = async (): Promise<void> => {
       try {
         setLoading(true);
 
-        const token = await localforage.getItem("authToken");
+        const token = await localforage.getItem<string>("authToken");
 
         if (!token) {
-          navigate("/", { replace: true });
+          if (mounted) navigate("/", { replace: true });
           return;
         }
 
-        const response = await axios.get(USER_DATA_ENDPOINT, {
-          headers: {
-            Authorization: `Bearer ${token}`,
+        const response = await axios.get<UserData | { user?: UserData; data?: UserData }>(
+          USER_DATA_ENDPOINT,
+          {
+            headers: { Authorization: `Bearer ${token}` },
           },
-        });
+        );
 
         if (!mounted) return;
 
-        const user = response.data;
+        // Support both a direct user object and common API response wrappers.
+        const payload = response.data;
+        const user: UserData =
+          ("user" in payload && payload.user) ||
+          ("data" in payload && payload.data) ||
+          (payload as UserData);
+
         const jobs = Array.isArray(user.jobs) ? user.jobs : [];
+        const totalApplications = jobs.filter((job) => isValidDate(job.appliedDate)).length;
 
-        const totalApplications = jobs.filter((job) => job.appliedDate).length;
-
+        const now = new Date();
         const upcomingInterviews = jobs.reduce((count, job) => {
-          if (
-            job.status === "Interviewing" &&
-            Array.isArray(job.interviewDates)
-          ) {
-            const hasUpcoming = job.interviewDates.some(
-              (interview) => new Date(interview.date) > new Date(),
-            );
-
-            return count + (hasUpcoming ? 1 : 0);
+          if (normalizeStatus(job.status) !== "interviewing" || !Array.isArray(job.interviewDates)) {
+            return count;
           }
 
-          return count;
+          const upcomingCount = job.interviewDates.filter(
+            (interview) =>
+              isValidDate(interview?.date) && new Date(interview.date) > now,
+          ).length;
+
+          return count + upcomingCount;
         }, 0);
 
         setDashboardData({
-          userName: user.firstname || "User",
+          userName: user.firstname?.trim() || "User",
           jobs,
           totalApplications,
           upcomingInterviews,
           profileCompletion: calculateProfileCompletion(user),
           weeklyApplications: getWeeklyApplicationsData(jobs),
           assistant: user.assistant || null,
-          notifications: Array.isArray(user.notifications)
-            ? user.notifications
-            : [],
+          notifications: Array.isArray(user.notifications) ? user.notifications : [],
           statusCounts: getStatusCounts(jobs),
-          plan: user.plan || null,
+          plan: user.plan ?? null,
         });
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Dashboard data fetch failed:", error);
 
-        if (error.response?.status === 401 || error.response?.status === 403) {
-          toast.error("Your session has expired. Please log in again.");
+        if (!mounted) return;
 
+        if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status || 0)) {
+          toast.error("Your session has expired. Please log in again.");
           await localforage.removeItem("authToken");
 
-          if (mounted) {
-            navigate("/", { replace: true });
-          }
+          if (mounted) navigate("/", { replace: true });
         } else {
           toast.error("Failed to load dashboard data.");
         }
@@ -244,28 +238,20 @@ const Dashboard = () => {
       }
     };
 
-    fetchUserData();
+    void fetchUserData();
 
     return () => {
       mounted = false;
     };
   }, [navigate]);
 
-  // --------------------------------------------------
-  // NAVIGATION
-  // --------------------------------------------------
-
-  const handleCompleteProfile = () => {
+  const handleCompleteProfile = (): void => {
     navigate("/setup");
   };
 
-  const handleSubscribe = () => {
+  const handleSubscribe = (): void => {
     navigate("/checkout");
   };
-
-  // --------------------------------------------------
-  // LOADING STATE
-  // --------------------------------------------------
 
   if (loading) {
     return (
@@ -274,7 +260,6 @@ const Dashboard = () => {
           className="w-12 h-12 border-4 border-gray-200
           border-t-[#4eaa3c] rounded-full animate-spin"
         />
-
         <p className="text-sm text-gray-500 mt-4">
           Preparing your dashboard...
         </p>
@@ -292,57 +277,6 @@ const Dashboard = () => {
   );
 
   const firstName = data.userName;
-
-  const stats = [
-    {
-      title: "Total Applications",
-      value: data.totalApplications,
-      description: "All submitted applications",
-      icon: FaBriefcase,
-      iconColor: "text-blue-600",
-      iconBg: "bg-blue-50",
-    },
-    {
-      title: "Applied",
-      value: data.statusCounts.applied,
-      description: "Applications submitted",
-      icon: FaRocket,
-      iconColor: "text-indigo-600",
-      iconBg: "bg-indigo-50",
-    },
-    {
-      title: "Interviewing",
-      value: data.statusCounts.interviewing,
-      description: `${data.upcomingInterviews} upcoming interviews`,
-      icon: FaRegCalendarAlt,
-      iconColor: "text-amber-600",
-      iconBg: "bg-amber-50",
-    },
-    {
-      title: "Offers Received",
-      value: data.statusCounts.offerReceived,
-      description: "Potential opportunities",
-      icon: FaTrophy,
-      iconColor: "text-purple-600",
-      iconBg: "bg-purple-50",
-    },
-    {
-      title: "Hired",
-      value: data.statusCounts.hired,
-      description: "Successful placements",
-      icon: FaCheckCircle,
-      iconColor: "text-emerald-600",
-      iconBg: "bg-emerald-50",
-    },
-    {
-      title: "Pending",
-      value: data.statusCounts.pending,
-      description: "Awaiting review",
-      icon: FaClock,
-      iconColor: "text-orange-600",
-      iconBg: "bg-orange-50",
-    },
-  ];
 
   // --------------------------------------------------
   // RENDER

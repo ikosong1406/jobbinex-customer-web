@@ -43,14 +43,7 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
   currentPlanName,
   userDetails,
 }) => {
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handleSubscribeClick = (plan: Plan) => {
-    setSelectedPlan(plan);
-    setShowConfirmationModal(true);
-  };
+  const [processingPlan, setProcessingPlan] = useState<string | null>(null);
 
   const createPaymentEntry = async (plan: Plan, token: string) => {
     if (!userDetails) {
@@ -66,7 +59,7 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
       planName: plan.name,
       planPrice: plan.price,
       planDuration: plan.duration,
-      status: "pending", // Payment entry created, waiting for Stripe payment
+      status: "pending",
       paymentMethod: "stripe",
     };
 
@@ -75,37 +68,36 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
       paymentEntryData,
       {
         headers: { Authorization: `Bearer ${token}` },
-      }
+      },
     );
 
-    return response.data.paymentId; // Assuming backend returns a payment ID
+    return response.data.paymentId;
   };
 
-  const handleConfirmPayment = async () => {
-    if (!selectedPlan || !userDetails) {
-      toast.error("Please select a plan and ensure you're logged in.");
+  const handleConfirmPayment = async (plan: Plan) => {
+    if (!userDetails) {
+      toast.error("Please ensure you're logged in.");
       return;
     }
-
-    setIsProcessing(true);
     const token = await localforage.getItem<string>("authToken");
 
     if (!token) {
       toast.error("Authentication failed. Please log in again.");
-      setIsProcessing(false);
       return;
     }
 
+    setProcessingPlan(plan.name);
+
     try {
-      const paymentId = await createPaymentEntry(selectedPlan, token);
+      const paymentId = await createPaymentEntry(plan, token);
 
       const { data } = await axios.post(
         CHECKOUT_ENDPOINT,
         {
-          planName: selectedPlan.name,
-          paymentId: paymentId, // Send payment ID to associate with Stripe session
+          planName: plan.name,
+          paymentId: paymentId,
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
 
       if (!data.redirectUrl) {
@@ -114,34 +106,26 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
 
       toast.dismiss();
 
-      // Step 3: Redirect to Stripe checkout
       window.location.href = data.redirectUrl;
     } catch (error: any) {
       toast.dismiss();
 
-      // Check if it's an Axios error
       if (axios.isAxiosError(error)) {
         const errorMessage = error.response?.data?.message || error.message;
         toast.error(`Payment setup failed: ${errorMessage}`);
       } else {
         toast.error(error.message || "Payment setup failed. Please try again.");
       }
-
-      setIsProcessing(false);
-      setShowConfirmationModal(false);
+      setProcessingPlan(null);
     }
-  };
-
-  const handleCloseModal = () => {
-    setShowConfirmationModal(false);
-    setSelectedPlan(null);
   };
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {plans.map((plan) => {
           const isActivePlan = plan.name === currentPlanName;
+          const isProcessing = processingPlan === plan.name;
 
           return (
             <div
@@ -195,104 +179,18 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
                 </button>
               ) : (
                 <button
-                  onClick={() => handleSubscribeClick(plan)}
-                  className="mt-5 px-4 py-2 text-white rounded-lg hover:opacity-90 transition-colors"
+                  onClick={() => handleConfirmPayment(plan)}
+                  disabled={processingPlan !== null}
+                  className="mt-5 px-4 py-2 text-white rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ backgroundColor: "#4eaa3c" }}
                 >
-                  Subscribe Now
+                  {isProcessing ? "Redirecting…" : "Subscribe Now"}
                 </button>
               )}
             </div>
           );
         })}
       </div>
-
-      {/* Confirmation Modal */}
-      {showConfirmationModal && selectedPlan && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <h3 className="text-xl font-semibold mb-4">Confirm Subscription</h3>
-
-            <div className="mb-6">
-              <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-semibold">
-                    {selectedPlan.name} Plan
-                  </span>
-                  <span className="text-2xl font-bold">
-                    £{selectedPlan.price}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600">
-                  {selectedPlan.description}
-                </p>
-              </div>
-
-              <div className="space-y-3 mb-6">
-                <div className="flex items-start">
-                  <FaCheckCircle className="text-green-500 mt-1 mr-2 flex-shrink-0" />
-                  <span className="text-sm">
-                    You will be redirected to Stripe for secure payment
-                    processing
-                  </span>
-                </div>
-                <div className="flex items-start">
-                  <FaCheckCircle className="text-green-500 mt-1 mr-2 flex-shrink-0" />
-                  <span className="text-sm">
-                    <strong>Important:</strong> After successful payment, you
-                    will be assigned a dedicated assistant within 24 hours.
-                  </span>
-                </div>
-                <div className="flex items-start">
-                  <FaCheckCircle className="text-green-500 mt-1 mr-2 flex-shrink-0" />
-                  <span className="text-sm">
-                    Your assistant will reach out via inbox to begin optimizing
-                    your job search.
-                  </span>
-                </div>
-
-                {/* Display user details being sent */}
-                {userDetails && (
-                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                    <p className="text-xs text-gray-600 mb-1">
-                      <strong>Payment will be processed for:</strong>
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {userDetails.firstname} {userDetails.lastname}
-                    </p>
-                    <p className="text-xs text-gray-600">{userDetails.email}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex space-x-3">
-              <button
-                onClick={handleCloseModal}
-                disabled={isProcessing}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmPayment}
-                disabled={isProcessing}
-                className="flex-1 px-4 py-2 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: "#4eaa3c" }}
-              >
-                {isProcessing ? (
-                  <span className="flex items-center justify-center">
-                    <div className="w-5 h-5 border-t-2 border-white border-solid rounded-full animate-spin mr-2"></div>
-                    Creating Payment...
-                  </span>
-                ) : (
-                  "Pay Now"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };
