@@ -398,29 +398,7 @@ const Inbox: React.FC = () => {
   // --------------------------------------------------
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
-      {/* ── Page header — matches other pages ── */}
-      <section className="flex flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#17231a] tracking-tight">
-            Inbox
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Direct line to your career assistant.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 text-xs text-gray-500 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
-            <FaRegCalendarAlt className="text-[#4eaa3c]" />
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
-          </div>
-        </div>
-      </section>
-
+    <div className="w-full max-w-[1500px] mx-auto">
       {/* ── Main chat surface ── */}
       <section className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
         <div className="flex h-[calc(100vh-220px)] min-h-[520px] relative">

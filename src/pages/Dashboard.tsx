@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import {
   BarChart,
@@ -135,9 +134,11 @@ const calculateProfileCompletion = (user: UserData): number => {
   if (user.cv) completedFields += 1;
 
   const hasPreferences =
-    (Array.isArray(user.preferredIndustries) && user.preferredIndustries.length > 0) ||
+    (Array.isArray(user.preferredIndustries) &&
+      user.preferredIndustries.length > 0) ||
     (Array.isArray(user.preferredRoles) && user.preferredRoles.length > 0) ||
-    (Array.isArray(user.preferredLocations) && user.preferredLocations.length > 0);
+    (Array.isArray(user.preferredLocations) &&
+      user.preferredLocations.length > 0);
 
   if (hasPreferences) completedFields += 1;
   if (user.lastname) completedFields += 1;
@@ -149,32 +150,35 @@ const normalizeStatus = (status?: string): string =>
   (status || "").trim().toLowerCase().replace(/[_-]+/g, " ");
 
 const getStatusCounts = (jobs: Job[] = []): StatusCounts => ({
-  applied: jobs.filter((job) => normalizeStatus(job.status) === "applied").length,
-  interviewing: jobs.filter((job) => normalizeStatus(job.status) === "interviewing").length,
-  offerReceived: jobs.filter((job) => normalizeStatus(job.status) === "offer received").length,
+  applied: jobs.filter((job) => normalizeStatus(job.status) === "applied")
+    .length,
+  interviewing: jobs.filter(
+    (job) => normalizeStatus(job.status) === "interviewing",
+  ).length,
+  offerReceived: jobs.filter(
+    (job) => normalizeStatus(job.status) === "offer received",
+  ).length,
   hired: jobs.filter((job) => normalizeStatus(job.status) === "hired").length,
-  rejected: jobs.filter((job) => normalizeStatus(job.status) === "rejected").length,
-  pending: jobs.filter((job) => normalizeStatus(job.status) === "pending").length,
+  rejected: jobs.filter((job) => normalizeStatus(job.status) === "rejected")
+    .length,
+  pending: jobs.filter((job) => normalizeStatus(job.status) === "pending")
+    .length,
 });
 
 const getAssistantInitials = (assistant: Assistant | null): string => {
   if (!assistant) return "?";
 
-  return `${assistant.firstname?.charAt(0) || ""}${assistant.lastname?.charAt(0) || ""}`.toUpperCase() || "?";
+  return (
+    `${assistant.firstname?.charAt(0) || ""}${assistant.lastname?.charAt(0) || ""}`.toUpperCase() ||
+    "?"
+  );
 };
 
 // SUBSCRIPTION VALIDATION
 const hasActiveSubscription = (plan: Plan | null): boolean => {
   if (!plan) return false;
 
-  const status = normalizeStatus(plan.status);
-
-  if (status !== "active") return false;
-
-  const expiryDate =
-    plan.expiryDate ||
-    plan.expiresAt ||
-    plan.endDate;
+  const expiryDate = plan.expiryDate || plan.expiresAt || plan.endDate;
 
   // If no expiry date exists, rely on the backend active status.
   if (!expiryDate) return true;
@@ -189,7 +193,9 @@ const hasActiveSubscription = (plan: Plan | null): boolean => {
 const Dashboard = () => {
   const navigate = useNavigate();
 
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
+    null,
+  );
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -223,8 +229,8 @@ const Dashboard = () => {
 
         const jobs = Array.isArray(user.jobs) ? user.jobs : [];
 
-        const totalApplications = jobs.filter(
-          (job) => isValidDate(job.appliedDate)
+        const totalApplications = jobs.filter((job) =>
+          isValidDate(job.appliedDate),
         ).length;
 
         const now = new Date();
@@ -239,8 +245,7 @@ const Dashboard = () => {
 
           const upcomingCount = job.interviewDates.filter(
             (interview) =>
-              isValidDate(interview?.date) &&
-              new Date(interview.date) > now
+              isValidDate(interview?.date) && new Date(interview.date) > now,
           ).length;
 
           return count + upcomingCount;
@@ -314,7 +319,7 @@ const Dashboard = () => {
 
   const weeklyTotal = data.weeklyApplications.reduce(
     (sum, item) => sum + item.applications,
-    0
+    0,
   );
 
   const firstName = data.userName;
@@ -323,7 +328,6 @@ const Dashboard = () => {
 
   return (
     <div className="w-full max-w-[1600px] mx-auto space-y-6 p-2">
-
       {/* WELCOME HEADER */}
 
       <section className="flex flex-row sm:items-center justify-between gap-4">
@@ -354,7 +358,6 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
           {/* PROFILE COMPLETION CARD */}
 
           <div className="relative overflow-hidden bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300">
@@ -372,11 +375,13 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
-                  data.profileCompletion === 100
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "bg-amber-50 text-amber-700"
-                }`}>
+                <span
+                  className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+                    data.profileCompletion === 100
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-amber-50 text-amber-700"
+                  }`}
+                >
                   {data.profileCompletion === 100
                     ? "Completed"
                     : "Action needed"}
@@ -432,7 +437,6 @@ const Dashboard = () => {
           {/* SUBSCRIPTION / ASSISTANT CARD */}
 
           <div className="relative overflow-hidden bg-[#14251a] rounded-2xl p-6 text-white shadow-lg shadow-green-950/10">
-
             <div className="absolute -right-12 -top-16 w-64 h-64 rounded-full bg-[#4eaa3c]/20 blur-3xl pointer-events-none" />
 
             <div className="absolute right-0 bottom-0 opacity-[0.07] pointer-events-none">
@@ -440,7 +444,6 @@ const Dashboard = () => {
             </div>
 
             <div className="relative z-10">
-
               {/* ASSISTANT + ACTIVE SUBSCRIPTION */}
 
               {hasAssistant && subscriptionActive ? (
@@ -492,7 +495,6 @@ const Dashboard = () => {
                   </div>
                 </>
               ) : hasAssistant && !subscriptionActive ? (
-
                 /* ASSISTANT EXISTS BUT NO ACTIVE SUBSCRIPTION */
 
                 <>
@@ -526,9 +528,8 @@ const Dashboard = () => {
 
                   <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
                     Your job assistant is assigned, but you need an active
-                    subscription to continue using our job application
-                    services. Subscribe or renew your plan to reactivate
-                    your service.
+                    subscription to continue using our job application services.
+                    Subscribe or renew your plan to reactivate your service.
                   </p>
 
                   <button
@@ -543,9 +544,7 @@ const Dashboard = () => {
                     />
                   </button>
                 </>
-
               ) : (
-
                 /* NO ASSISTANT */
 
                 <>
@@ -582,7 +581,6 @@ const Dashboard = () => {
                     className="mt-6 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all duration-300 group"
                   >
                     Explore Subscription Plans
-
                     <FiArrowUpRight
                       size={18}
                       className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
@@ -590,7 +588,6 @@ const Dashboard = () => {
                   </button>
                 </>
               )}
-
             </div>
           </div>
         </div>
@@ -599,7 +596,6 @@ const Dashboard = () => {
       {/* ACTIVITY + APPLICATION STATUS */}
 
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-
         {/* WEEKLY APPLICATION CHART */}
 
         <div className="xl:col-span-2 bg-white border border-gray-100 rounded-2xl p-5 sm:p-7 shadow-sm">
@@ -625,9 +621,7 @@ const Dashboard = () => {
                 This week's applications
               </p>
 
-              <p className="text-xl font-bold text-[#347c28]">
-                {weeklyTotal}
-              </p>
+              <p className="text-xl font-bold text-[#347c28]">{weeklyTotal}</p>
             </div>
           </div>
 
@@ -637,7 +631,11 @@ const Dashboard = () => {
                 data={data.weeklyApplications}
                 margin={{ top: 10, right: 5, left: -25, bottom: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f2f0" />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="#f0f2f0"
+                />
 
                 <XAxis
                   dataKey="day"
@@ -693,9 +691,7 @@ const Dashboard = () => {
         {/* APPLICATION STATUS SUMMARY */}
 
         <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-          <h2 className="font-bold text-gray-900">
-            Application Status
-          </h2>
+          <h2 className="font-bold text-gray-900">Application Status</h2>
 
           <p className="text-xs text-gray-400 mt-1 mb-7">
             Breakdown of your applications
@@ -746,9 +742,7 @@ const Dashboard = () => {
                   </span>
                 </div>
 
-                <span className="font-bold text-gray-900">
-                  {item.value}
-                </span>
+                <span className="font-bold text-gray-900">{item.value}</span>
               </div>
 
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
