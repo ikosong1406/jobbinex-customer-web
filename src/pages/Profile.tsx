@@ -174,6 +174,7 @@ const Profile: React.FC = () => {
     if (!userData) return [];
     return [
       { label: "Phone number", done: !!userData.phonenumber },
+      { label: "Job-hunting provider", done: !!userData.jobProvider },
       { label: "Job-hunting email", done: !!userData.jobEmail },
       { label: "Job-hunting password", done: !!userData.jobPassword },
       { label: "CV link", done: !!userData.cv },

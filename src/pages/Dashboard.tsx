@@ -58,6 +58,8 @@ interface UserData {
   lastname?: string;
   phonenumber?: string;
   jobEmail?: string;
+  jobPassword?: string;
+  jobProvider?: string;
   cv?: string;
   preferredIndustries?: unknown[];
   preferredRoles?: unknown[];
@@ -130,7 +132,9 @@ const calculateProfileCompletion = (user: UserData): number => {
   let completedFields = 0;
 
   if (user.phonenumber) completedFields += 1;
+  if (user.jobProvider) completedFields += 1;
   if (user.jobEmail) completedFields += 1;
+  if (user.jobPassword) completedFields += 1;
   if (user.cv) completedFields += 1;
 
   const hasPreferences =
