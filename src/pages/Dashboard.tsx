@@ -95,7 +95,10 @@ interface DashboardData {
   notifications: unknown[];
   statusCounts: StatusCounts;
   plan: Plan | null;
+  profileFullyCompleted: boolean;
 }
+
+type PlanState = "active" | "expired" | "free";
 
 const isValidDate = (value: unknown): value is string | Date => {
   if (!(typeof value === "string" || value instanceof Date)) return false;
@@ -128,26 +131,24 @@ const getWeeklyApplicationsData = (jobs: Job[] = []): WeeklyApplication[] => {
 };
 
 const calculateProfileCompletion = (user: UserData): number => {
-  const totalFields = 5;
-  let completedFields = 0;
-
-  if (user.phonenumber) completedFields += 1;
-  if (user.jobProvider) completedFields += 1;
-  if (user.jobEmail) completedFields += 1;
-  if (user.jobPassword) completedFields += 1;
-  if (user.cv) completedFields += 1;
-
   const hasPreferences =
     (Array.isArray(user.preferredIndustries) &&
       user.preferredIndustries.length > 0) ||
-    (Array.isArray(user.preferredRoles) && user.preferredRoles.length > 0) ||
-    (Array.isArray(user.preferredLocations) &&
-      user.preferredLocations.length > 0);
+    (Array.isArray(user.preferredRoles) && user.preferredRoles.length > 0);
 
-  if (hasPreferences) completedFields += 1;
-  if (user.lastname) completedFields += 1;
+  // 7 checks total — keep the denominator in sync with the checks below.
+  const checks: boolean[] = [
+    Boolean(user.phonenumber?.trim()),
+    Boolean(user.jobProvider?.trim()),
+    Boolean(user.jobEmail?.trim()),
+    Boolean(user.jobPassword?.trim()),
+    typeof user.cv === "string" && user.cv.trim().length > 0, // cv is a string
+    hasPreferences,
+  ];
 
-  return Math.round((completedFields / totalFields) * 100);
+  const completedFields = checks.filter(Boolean).length;
+
+  return Math.round((completedFields / checks.length) * 100);
 };
 
 const normalizeStatus = (status?: string): string =>
@@ -192,6 +193,45 @@ const hasActiveSubscription = (plan: Plan | null): boolean => {
   if (Number.isNaN(expiry.getTime())) return false;
 
   return expiry.getTime() > Date.now();
+};
+
+// Explicit plan state so null/empty plans are treated as "free"
+const getPlanState = (plan: Plan | null): PlanState => {
+  if (!plan) return "free";
+
+  // Treat an empty plan object as free tier as well.
+  const hasAnyField =
+    Boolean(plan.status) ||
+    Boolean(plan.expiryDate) ||
+    Boolean(plan.expiresAt) ||
+    Boolean(plan.endDate);
+
+  if (!hasAnyField) return "free";
+
+  return hasActiveSubscription(plan) ? "active" : "expired";
+};
+
+// Full profile validation used before claiming a free application.
+// NOTE: cv is a string, so we check for a non-empty trimmed string.
+const isProfileFullyCompleted = (user: UserData): boolean => {
+  const hasPreferences =
+    (Array.isArray(user.preferredIndustries) &&
+      user.preferredIndustries.length > 0) ||
+    (Array.isArray(user.preferredRoles) && user.preferredRoles.length > 0) ||
+    (Array.isArray(user.preferredLocations) &&
+      user.preferredLocations.length > 0);
+
+  return Boolean(
+    user.firstname?.trim() &&
+    user.lastname?.trim() &&
+    user.phonenumber?.trim() &&
+    user.jobProvider?.trim() &&
+    user.jobEmail?.trim() &&
+    user.jobPassword?.trim() &&
+    typeof user.cv === "string" &&
+    user.cv.trim().length > 0 &&
+    hasPreferences,
+  );
 };
 
 const Dashboard = () => {
@@ -268,6 +308,7 @@ const Dashboard = () => {
             : [],
           statusCounts: getStatusCounts(jobs),
           plan: user.plan || null,
+          profileFullyCompleted: isProfileFullyCompleted(user),
         });
       } catch (error: unknown) {
         console.error("Dashboard data fetch failed:", error);
@@ -306,6 +347,26 @@ const Dashboard = () => {
     navigate("/checkout");
   };
 
+  const handleClaimFreeApplication = (): void => {
+    if (!dashboardData) return;
+
+    if (!dashboardData.profileFullyCompleted) {
+      toast.error(
+        "Please complete your profile (including your CV) before claiming your free application.",
+      );
+      navigate("/setup");
+      return;
+    }
+
+    // Profile is complete — proceed with claiming the free application.
+    // TODO: Replace this toast + navigation with your actual API call, e.g.
+    // await axios.post(`${Api}/customer/claim-free-application`, {}, {
+    //   headers: { Authorization: `Bearer ${token}` },
+    // });
+    toast.success("Free application claimed! Redirecting...");
+    navigate("/jobs");
+  };
+
   if (loading) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center">
@@ -327,8 +388,15 @@ const Dashboard = () => {
   );
 
   const firstName = data.userName;
-  const subscriptionActive = hasActiveSubscription(data.plan);
+
+  // Explicit plan state so null/empty plan is handled as a free tier.
+  const planState: PlanState = getPlanState(data.plan);
+
   const hasAssistant = Boolean(data.assistant);
+  const isActiveWithAssistant = hasAssistant && planState === "active";
+  const isFreeWithAssistant = hasAssistant && planState === "free";
+  const isExpiredWithAssistant = hasAssistant && planState === "expired";
+  const noAssistant = !hasAssistant;
 
   return (
     <div className="w-full max-w-[1600px] mx-auto space-y-6 p-2">
@@ -449,8 +517,7 @@ const Dashboard = () => {
 
             <div className="relative z-10">
               {/* ASSISTANT + ACTIVE SUBSCRIPTION */}
-
-              {hasAssistant && subscriptionActive ? (
+              {isActiveWithAssistant && (
                 <>
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex items-center gap-3">
@@ -498,9 +565,75 @@ const Dashboard = () => {
                     </button>
                   </div>
                 </>
-              ) : hasAssistant && !subscriptionActive ? (
-                /* ASSISTANT EXISTS BUT NO ACTIVE SUBSCRIPTION */
+              )}
 
+              {/* ASSISTANT + FREE PLAN (null / empty plan) => CLAIM FREE APPLICATION */}
+              {isFreeWithAssistant && (
+                <>
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-[#4eaa3c]/20 flex items-center justify-center text-[#8cdb78]">
+                        <FaUserTie size={22} />
+                      </div>
+
+                      <div>
+                        <h3 className="font-bold text-white">
+                          Your Job Assistant
+                        </h3>
+                      </div>
+                    </div>
+
+                    <span className="bg-emerald-400/10 text-emerald-300 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
+                      Free
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-7">
+                    <div className="w-12 h-12 rounded-full bg-[#4eaa3c] flex items-center justify-center text-white font-bold">
+                      {getAssistantInitials(data.assistant)}
+                    </div>
+
+                    <div>
+                      <h4 className="font-semibold">
+                        {data.assistant?.firstname} {data.assistant?.lastname}
+                      </h4>
+
+                      <p className="text-xs text-gray-400 mt-1">
+                        {data.assistant?.status === "online"
+                          ? "Available now"
+                          : "Currently unavailable"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
+                    Claim your free application.
+                  </h2>
+
+                  <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
+                    {data.profileFullyCompleted
+                      ? "Your profile is complete. Claim your free application to get started with your assistant."
+                      : "Complete your profile (including your CV) to claim your free application."}
+                  </p>
+
+                  <button
+                    onClick={handleClaimFreeApplication}
+                    className="mt-6 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all duration-300 group"
+                  >
+                    {data.profileFullyCompleted
+                      ? "Claim Free Application"
+                      : "Complete Profile to Claim"}
+
+                    <FiArrowUpRight
+                      size={18}
+                      className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
+                    />
+                  </button>
+                </>
+              )}
+
+              {/* ASSISTANT + EXPIRED PLAN => RENEW */}
+              {isExpiredWithAssistant && (
                 <>
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex items-center gap-3">
@@ -525,32 +658,30 @@ const Dashboard = () => {
                   </div>
 
                   <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
-                    {data.plan
-                      ? "Your subscription has expired."
-                      : "Activate your subscription."}
+                    Your subscription has expired.
                   </h2>
 
                   <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
-                    Your job assistant is assigned, but you need an active
-                    subscription to continue using our job application services.
-                    Subscribe or renew your plan to reactivate your service.
+                    Your job assistant is assigned, but your plan has expired.
+                    Renew your subscription to continue using our job
+                    application services.
                   </p>
 
                   <button
                     onClick={handleSubscribe}
                     className="mt-6 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all duration-300 group"
                   >
-                    {data.plan ? "Renew Subscription" : "Subscribe Now"}
-
+                    Renew Subscription
                     <FiArrowUpRight
                       size={18}
                       className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
                     />
                   </button>
                 </>
-              ) : (
-                /* NO ASSISTANT */
+              )}
 
+              {/* NO ASSISTANT (any plan state) => ACTIVATE / SUBSCRIBE */}
+              {noAssistant && (
                 <>
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex items-center gap-3">
@@ -622,7 +753,7 @@ const Dashboard = () => {
 
             <div className="bg-emerald-50 rounded-xl px-4 py-2 w-fit">
               <p className="text-[10px] text-gray-500">
-                This week's applications
+                This week&apos;s applications
               </p>
 
               <p className="text-xl font-bold text-[#347c28]">{weeklyTotal}</p>

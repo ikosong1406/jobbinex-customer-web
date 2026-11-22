@@ -26,12 +26,15 @@ import Api from "../components/Api";
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
 
 interface PlanData {
-  name: string;
-  expiresAt: string;
+  name?: string;
+  status?: string;
+  expiresAt?: string | null;
+  expiryDate?: string | null;
+  endDate?: string | null;
 }
 
 interface UserData {
-  plan?: PlanData;
+  plan?: PlanData | null;
   _id: string;
   firstname: string;
   lastname: string;
@@ -46,6 +49,8 @@ interface UserData {
   preferredLocations?: string | string[];
 }
 
+type PlanState = "active" | "expired" | "free";
+
 const toArray = (v?: string | string[]): string[] => {
   if (!v) return [];
   if (Array.isArray(v)) return v;
@@ -59,6 +64,66 @@ const getInitials = (first: string, last: string) => {
   if (!first && !last) return "U";
   return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
 };
+
+// ---------- PLAN STATE (matches Dashboard) ----------
+const getPlanExpiry = (plan?: PlanData | null): string | undefined => {
+  const raw = plan?.expiryDate || plan?.expiresAt || plan?.endDate;
+  if (!raw) return undefined;
+  return raw;
+};
+
+const getPlanState = (plan?: PlanData | null): PlanState => {
+  if (!plan) return "free";
+
+  const name = (plan.name || "").trim().toLowerCase();
+
+  // Backend sends a free-tier placeholder, e.g. { name: "Free", expiresAt: null }
+  if (name === "free" || name === "trial" || name === "basic") return "free";
+
+  const expiryDate = getPlanExpiry(plan);
+
+  // No usable plan fields at all => free
+  const hasAnyField =
+    Boolean(plan.name) || Boolean(plan.status) || Boolean(expiryDate);
+
+  if (!hasAnyField) return "free";
+
+  // Named paid plan with no expiry date => trust backend as active
+  if (!expiryDate) return "active";
+
+  const expiry = new Date(expiryDate);
+  if (Number.isNaN(expiry.getTime())) return "expired";
+
+  return expiry.getTime() > Date.now() ? "active" : "expired";
+};
+
+// ---------- PROFILE COMPLETION (matches Dashboard) ----------
+const getProfileChecks = (user: UserData): boolean[] => {
+  const hasPreferences =
+    (Array.isArray(user.preferredIndustries) &&
+      user.preferredIndustries.length > 0) ||
+    (Array.isArray(user.preferredRoles) && user.preferredRoles.length > 0) ||
+    (Array.isArray(user.preferredLocations) &&
+      user.preferredLocations.length > 0);
+
+  return [
+    Boolean(user.phonenumber?.trim()),
+    Boolean(user.jobProvider?.trim()),
+    Boolean(user.jobEmail?.trim()),
+    Boolean(user.jobPassword?.trim()),
+    typeof user.cv === "string" && user.cv.trim().length > 0, // cv is a string
+    hasPreferences,
+    Boolean(user.lastname?.trim()),
+  ];
+};
+
+const calculateProfileCompletion = (user: UserData): number => {
+  const checks = getProfileChecks(user);
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+};
+
+const isProfileFullyCompleted = (user: UserData): boolean =>
+  getProfileChecks(user).every(Boolean);
 
 const SectionHeader: React.FC<{ title: string; description?: string }> = ({
   title,
@@ -121,6 +186,10 @@ const Profile: React.FC = () => {
     navigate("/", { replace: true });
   };
 
+  const handleSubscribe = (): void => {
+    navigate("/checkout");
+  };
+
   const fetchUserData = async () => {
     try {
       setLoading(true);
@@ -163,35 +232,52 @@ const Profile: React.FC = () => {
     }
   }, [searchParams]);
 
-  const planExpired =
-    !!userData?.plan?.name &&
-    !!userData.plan.expiresAt &&
-    new Date(userData.plan.expiresAt) <= new Date();
-  const hasActivePlan = !!userData?.plan?.name && !planExpired;
+  // ---------- PLAN STATE ----------
+  const planState: PlanState = getPlanState(userData?.plan);
   const currentPlanName = userData?.plan?.name;
 
+  // Free / expired / null plan => show a literal "Subscribe" button.
+  // Active paid plan => never show it (only "Manage plan").
+  const showSubscribeCTA = planState === "free" || planState === "expired";
+
+  // ---------- COMPLETION (matches Dashboard) ----------
+  // `checklist` is only used to render labels + their tick states.
+  // The *percentage* and the *complete flag* come from the shared helpers
+  // above so they match the Dashboard exactly (7 checks, cv-as-string).
   const checklist = useMemo(() => {
     if (!userData) return [];
     return [
-      { label: "Phone number", done: !!userData.phonenumber },
-      { label: "Job-hunting provider", done: !!userData.jobProvider },
-      { label: "Job-hunting email", done: !!userData.jobEmail },
-      { label: "Job-hunting password", done: !!userData.jobPassword },
-      { label: "CV link", done: !!userData.cv },
+      { label: "Phone number", done: Boolean(userData.phonenumber?.trim()) },
+      {
+        label: "Job-hunting provider",
+        done: Boolean(userData.jobProvider?.trim()),
+      },
+      { label: "Job-hunting email", done: Boolean(userData.jobEmail?.trim()) },
+      {
+        label: "Job-hunting password",
+        done: Boolean(userData.jobPassword?.trim()),
+      },
+      {
+        label: "CV link",
+        done:
+          typeof userData.cv === "string" && userData.cv.trim().length > 0,
+      },
       {
         label: "Target roles or industries",
         done:
           toArray(userData.preferredRoles).length > 0 ||
           toArray(userData.preferredIndustries).length > 0,
       },
+      {
+        label: "Last name",
+        done: Boolean(userData.lastname?.trim()),
+      },
     ];
   }, [userData]);
 
+  const completionPct = userData ? calculateProfileCompletion(userData) : 0;
+  const isComplete = userData ? isProfileFullyCompleted(userData) : false;
   const completedCount = checklist.filter((c) => c.done).length;
-  const completionPct = checklist.length
-    ? Math.round((completedCount / checklist.length) * 100)
-    : 0;
-  const isComplete = completionPct === 100;
 
   if (loading) {
     return (
@@ -220,23 +306,29 @@ const Profile: React.FC = () => {
               {userData?.firstname} {userData?.lastname}
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {hasActivePlan ? (
+              {planState === "active" ? (
                 <>
                   <span className="text-[#4eaa3c] font-semibold">
-                    {currentPlanName}
+                    {currentPlanName || "Active plan"}
                   </span>
-                  {" · renews "}
-                  {new Date(userData!.plan!.expiresAt).toLocaleDateString(
-                    "en-GB",
-                    { day: "numeric", month: "short" },
+                  {getPlanExpiry(userData?.plan) && (
+                    <>
+                      {" · renews "}
+                      {new Date(
+                        getPlanExpiry(userData?.plan)!,
+                      ).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </>
                   )}
                 </>
-              ) : planExpired ? (
+              ) : planState === "expired" ? (
                 <span className="text-amber-600 font-medium">
-                  Plan expired — renew to keep applying
+                  Plan expired — subscribe to keep applying
                 </span>
               ) : (
-                "No active plan"
+                "No active subscription"
               )}
             </p>
           </div>
@@ -365,7 +457,8 @@ const Profile: React.FC = () => {
             </div>
 
             <div className="relative z-10">
-              {hasActivePlan ? (
+              {/* ---------- ACTIVE PAID PLAN — NO subscribe button ---------- */}
+              {planState === "active" && (
                 <>
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex items-center gap-3">
@@ -375,7 +468,7 @@ const Profile: React.FC = () => {
                       <div>
                         <h3 className="font-bold text-white">Active plan</h3>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {currentPlanName}
+                          {currentPlanName || "Paid plan"}
                         </p>
                       </div>
                     </div>
@@ -385,12 +478,21 @@ const Profile: React.FC = () => {
                   </div>
 
                   <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
-                    Renews on{" "}
-                    {new Date(userData!.plan!.expiresAt).toLocaleDateString(
-                      "en-GB",
-                      { day: "numeric", month: "long", year: "numeric" },
+                    {getPlanExpiry(userData?.plan) ? (
+                      <>
+                        Renews on{" "}
+                        {new Date(
+                          getPlanExpiry(userData?.plan)!,
+                        ).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                        .
+                      </>
+                    ) : (
+                      "Your plan is active."
                     )}
-                    .
                   </h2>
 
                   <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
@@ -419,7 +521,56 @@ const Profile: React.FC = () => {
                     </button>
                   </div>
                 </>
-              ) : (
+              )}
+
+              {/* ---------- EXPIRED PLAN — subscribe to renew ---------- */}
+              {planState === "expired" && (
+                <>
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-amber-400/10 flex items-center justify-center text-amber-300">
+                        <FaExclamationCircle size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">
+                          Subscription expired
+                        </h3>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {currentPlanName || "Previous plan"}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="bg-amber-400/10 text-amber-300 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
+                      Expired
+                    </span>
+                  </div>
+
+                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
+                    Subscribe to keep your applications running.
+                  </h2>
+
+                  <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
+                    Your saved preferences and history are preserved. Renew your
+                    subscription to resume your pipeline immediately.
+                  </p>
+
+                  {showSubscribeCTA && (
+                    <button
+                      onClick={handleSubscribe}
+                      className="mt-6 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all group"
+                    >
+                      Subscribe to renew
+                      <FiArrowUpRight
+                        size={16}
+                        className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
+                      />
+                    </button>
+                  )}
+                </>
+              )}
+
+              {/* ---------- FREE / NULL PLAN — subscribe directly ---------- */}
+              {planState === "free" && (
                 <>
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex items-center gap-3">
@@ -428,39 +579,39 @@ const Profile: React.FC = () => {
                       </div>
                       <div>
                         <h3 className="font-bold text-white">
-                          {planExpired
-                            ? "Renew your plan"
-                            : "Activate your assistant"}
+                          Subscribe to get started
                         </h3>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          No active subscription
+                        </p>
                       </div>
                     </div>
-                    <span className="bg-amber-400/10 text-amber-300 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
-                      {planExpired ? "Expired" : "Not activated"}
+                    <span className="bg-emerald-400/10 text-emerald-300 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
+                      Free
                     </span>
                   </div>
 
                   <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
-                    {planExpired
-                      ? "Your applications are safe. Pick up where you left off."
-                      : "Let your next opportunity find you."}
+                    Subscribe and let your next opportunity find you.
                   </h2>
 
                   <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
-                    {planExpired
-                      ? "Renew to resume your pipeline. Your saved preferences and history are preserved."
-                      : "Subscribe and we'll start applying on your behalf within 24 hours. You focus on interviews — we handle the busywork."}
+                    Subscribe and we&apos;ll start applying on your behalf within
+                    24 hours. You focus on interviews — we handle the busywork.
                   </p>
 
-                  <button
-                    onClick={() => navigate("/checkout")}
-                    className="mt-6 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all group"
-                  >
-                    {planExpired ? "Renew plan" : "Explore plans"}
-                    <FiArrowUpRight
-                      size={16}
-                      className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
-                    />
-                  </button>
+                  {showSubscribeCTA && (
+                    <button
+                      onClick={handleSubscribe}
+                      className="mt-6 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all group"
+                    >
+                      Subscribe
+                      <FiArrowUpRight
+                        size={16}
+                        className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
+                      />
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -486,19 +637,22 @@ const Profile: React.FC = () => {
               icon={<FaPhone className="text-[11px]" />}
               label="Phone number"
               value={userData?.phonenumber}
-              complete={!!userData?.phonenumber}
+              complete={Boolean(userData?.phonenumber?.trim())}
             />
             <SummaryRow
               icon={<FaEnvelope className="text-[11px]" />}
               label="Job-hunting email"
               value={userData?.jobEmail}
-              complete={!!userData?.jobEmail}
+              complete={Boolean(userData?.jobEmail?.trim())}
             />
             <SummaryRow
               icon={<FaLink className="text-[11px]" />}
               label="CV link"
               value={userData?.cv}
-              complete={!!userData?.cv}
+              complete={
+                typeof userData?.cv === "string" &&
+                userData.cv.trim().length > 0
+              }
             />
             <SummaryRow
               icon={<FaBriefcase className="text-[11px]" />}
