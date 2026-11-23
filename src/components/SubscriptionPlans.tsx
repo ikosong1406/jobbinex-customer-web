@@ -143,9 +143,9 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
                   </span>
                 )}
 
-                <h3 className="font-semibold text-2xl">{plan.name}</h3>
+                <h3 className="font-semibold text-xl">{plan.name}</h3>
 
-                <div className="my-2">
+                <div className="my-1">
                   <span className="text-3xl font-extrabold mr-1">
                     £{plan.price}
                   </span>

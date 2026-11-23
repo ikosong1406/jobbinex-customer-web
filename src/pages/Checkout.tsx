@@ -30,6 +30,10 @@ export interface UserData {
   preferredIndustries?: string | string[];
   preferredRoles?: string | string[];
   preferredLocations?: string | string[];
+  jobProvider?: string;
+  jobEmail?: string;
+  jobPassword?: string;
+  cv?: string;
 }
 
 interface Plan {
@@ -178,10 +182,17 @@ const Checkout: React.FC = () => {
   // Readiness gate — warn if the profile is incomplete before they pay.
   const profileReady = useMemo(() => {
     if (!userData) return false;
-    const prefs =
-      toArray(userData.preferredRoles).length > 0 ||
-      toArray(userData.preferredIndustries).length > 0;
-    return !!(userData.phonenumber && prefs);
+
+    return !!(
+      userData.phonenumber?.trim() &&
+      userData.jobProvider?.trim() &&
+      userData.jobEmail?.trim() &&
+      userData.jobPassword?.trim() &&
+      typeof userData.cv === "string" &&
+      userData.cv.trim().length > 0 &&
+      (toArray(userData.preferredRoles).length > 0 ||
+        toArray(userData.preferredIndustries).length > 0)
+    );
   }, [userData]);
 
   if (loading) {
@@ -207,7 +218,7 @@ const Checkout: React.FC = () => {
           <FaArrowLeft className="text-sm" />
         </button>
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#17231a] tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-[#17231a] tracking-tight">
             {hasActivePlan
               ? "Manage your plan"
               : planExpired
@@ -264,8 +275,8 @@ const Checkout: React.FC = () => {
 
       {/* Readiness warning — soft nudge, not a blocker */}
       {!profileReady && (
-        <section className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
-          <FaExclamationCircle className="text-amber-600 mt-0.5 shrink-0" />
+        <section className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+          <FaExclamationCircle className="text-amber-600 shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-semibold text-amber-900">
               Finish your profile first
@@ -276,7 +287,7 @@ const Checkout: React.FC = () => {
             </p>
           </div>
           <button
-            onClick={() => navigate("/profile")}
+            onClick={() => navigate("/setup")}
             className="text-xs font-semibold text-amber-900 underline-offset-2 hover:underline whitespace-nowrap"
           >
             Finish setup

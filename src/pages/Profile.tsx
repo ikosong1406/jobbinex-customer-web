@@ -266,10 +266,6 @@ const Profile: React.FC = () => {
           toArray(userData.preferredRoles).length > 0 ||
           toArray(userData.preferredIndustries).length > 0,
       },
-      {
-        label: "Last name",
-        done: Boolean(userData.lastname?.trim()),
-      },
     ];
   }, [userData]);
 
