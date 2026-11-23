@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import localforage from "localforage";
@@ -20,7 +20,6 @@ import {
   FaTimes,
   FaFileAlt,
   FaRegCalendarCheck,
-  FaRegCalendarAlt,
   FaChartLine,
 } from "react-icons/fa";
 import { FiArrowUpRight } from "react-icons/fi";
@@ -36,9 +35,11 @@ const USER_FACING_STATUSES = [
   "Rejected",
   "Hired",
   "Archived",
-];
+] as const;
 
-const JOB_TYPE_LABELS = {
+type JobStatus = (typeof USER_FACING_STATUSES)[number] | "Pending";
+
+const JOB_TYPE_LABELS: Record<string, string> = {
   remote: "Remote",
   onsite: "On-site",
   hybrid: "Hybrid",
@@ -46,7 +47,7 @@ const JOB_TYPE_LABELS = {
   internship: "Internship",
 };
 
-const STATUS_STYLES = {
+const STATUS_STYLES: Record<string, string> = {
   Pending: "bg-amber-50 text-amber-700 border-amber-100",
   Applied: "bg-blue-50 text-blue-700 border-blue-100",
   Interviewing: "bg-violet-50 text-violet-700 border-violet-100",
@@ -56,11 +57,49 @@ const STATUS_STYLES = {
   Archived: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
-const STATUS_LABELS = {
+const STATUS_LABELS: Record<string, string> = {
   Pending: "Preparing application",
 };
 
-const formatSalary = (salary) => {
+interface SalaryRange {
+  min: number;
+  max: number;
+  currency?: string;
+}
+
+interface InterviewDate {
+  type?: string;
+  date?: string;
+  notes?: string;
+}
+
+interface Job {
+  _id: string;
+  title?: string;
+  company?: string;
+  location?: string;
+  jobType?: string;
+  jobSource?: string;
+  status: JobStatus;
+  salaryRange?: SalaryRange;
+  appliedDate?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  requiredSkills?: string[];
+  description?: string;
+  coverLetter?: string;
+  notes?: string;
+  interviewDates?: InterviewDate[];
+  jobUrl?: string;
+  resumeLink?: string;
+}
+
+interface Filters {
+  week: string;
+  status: string;
+}
+
+const formatSalary = (salary?: SalaryRange): string => {
   if (!salary || salary.min == null || salary.max == null) {
     return "Salary not specified";
   }
@@ -69,7 +108,7 @@ const formatSalary = (salary) => {
   ).toLocaleString()}`;
 };
 
-const formatDate = (date) => {
+const formatDate = (date?: string): string => {
   if (!date) return "Not available";
   const parsed = new Date(date);
   if (Number.isNaN(parsed.getTime())) return "Not available";
@@ -80,10 +119,10 @@ const formatDate = (date) => {
   });
 };
 
-const getDisplayStatus = (status) =>
+const getDisplayStatus = (status: JobStatus): string =>
   STATUS_LABELS[status] || status || "Unknown";
 
-const StatusBadge = ({ status }) => (
+const StatusBadge = ({ status }: { status: JobStatus }) => (
   <span
     className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold ${
       STATUS_STYLES[status] || STATUS_STYLES.Archived
@@ -112,7 +151,13 @@ const StatusBadge = ({ status }) => (
 // Section header — matches Dashboard/Profile
 // --------------------------------------------------
 
-const SectionHeader = ({ title, description }) => (
+const SectionHeader = ({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) => (
   <div className="mb-4">
     <div className="flex items-center gap-2">
       <span className="w-1 h-5 bg-[#4eaa3c] rounded-full" />
@@ -128,8 +173,18 @@ const SectionHeader = ({ title, description }) => (
 // Job Details Modal
 // --------------------------------------------------
 
-const JobDetailsModal = ({ job, onClose, onUpdateStatus }) => {
-  const [newStatus, setNewStatus] = useState(job.status || "Applied");
+interface JobDetailsModalProps {
+  job: Job;
+  onClose: () => void;
+  onUpdateStatus: (jobId: string, newStatus: string) => Promise<boolean>;
+}
+
+const JobDetailsModal = ({
+  job,
+  onClose,
+  onUpdateStatus,
+}: JobDetailsModalProps) => {
+  const [newStatus, setNewStatus] = useState<string>(job.status || "Applied");
   const [updating, setUpdating] = useState(false);
 
   const handleUpdate = async () => {
@@ -141,7 +196,7 @@ const JobDetailsModal = ({ job, onClose, onUpdateStatus }) => {
   };
 
   useEffect(() => {
-    const handleEscape = (event) => {
+    const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     document.addEventListener("keydown", handleEscape);
@@ -176,7 +231,7 @@ const JobDetailsModal = ({ job, onClose, onUpdateStatus }) => {
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={job.status} />
                 <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  {JOB_TYPE_LABELS[job.jobType] || job.jobType || "Job"}
+                  {JOB_TYPE_LABELS[job.jobType || ""] || job.jobType || "Job"}
                 </span>
               </div>
               <h2 className="mt-2 text-lg font-bold tracking-tight text-[#17231a] sm:text-xl">
@@ -281,7 +336,7 @@ const JobDetailsModal = ({ job, onClose, onUpdateStatus }) => {
                 <DetailRow label="Location" value={job.location} />
                 <DetailRow
                   label="Job type"
-                  value={JOB_TYPE_LABELS[job.jobType] || job.jobType}
+                  value={JOB_TYPE_LABELS[job.jobType || ""] || job.jobType}
                 />
                 <DetailRow label="Source" value={job.jobSource} />
                 <DetailRow
@@ -304,7 +359,7 @@ const JobDetailsModal = ({ job, onClose, onUpdateStatus }) => {
             </div>
 
             {/* Skills */}
-            {job.requiredSkills?.length > 0 && (
+            {job.requiredSkills && job.requiredSkills.length > 0 && (
               <div className="rounded-2xl border border-gray-100 bg-white p-5">
                 <h3 className="mb-3 text-sm font-bold text-gray-800">
                   Required skills
@@ -354,7 +409,7 @@ const JobDetailsModal = ({ job, onClose, onUpdateStatus }) => {
             )}
 
             {/* Interviews */}
-            {job.interviewDates?.length > 0 && (
+            {job.interviewDates && job.interviewDates.length > 0 && (
               <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-5">
                 <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-violet-900">
                   <FaRegCalendarCheck />
@@ -421,7 +476,15 @@ const JobDetailsModal = ({ job, onClose, onUpdateStatus }) => {
   );
 };
 
-const InfoTile = ({ icon, label, value }) => (
+const InfoTile = ({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) => (
   <div className="rounded-xl border border-gray-100 bg-white p-4">
     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-sm text-[#4eaa3c]">
       {icon}
@@ -435,14 +498,20 @@ const InfoTile = ({ icon, label, value }) => (
   </div>
 );
 
-const DetailSection = ({ title, children }) => (
+const DetailSection = ({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) => (
   <div className="rounded-xl border border-gray-100 bg-white p-5">
     <h3 className="mb-4 text-sm font-bold text-gray-800">{title}</h3>
     <div className="space-y-3">{children}</div>
   </div>
 );
 
-const DetailRow = ({ label, value }) => (
+const DetailRow = ({ label, value }: { label: string; value?: string }) => (
   <div className="flex items-start justify-between gap-3 text-xs">
     <span className="shrink-0 text-gray-400">{label}</span>
     <span className="text-right font-semibold text-gray-700">
@@ -455,7 +524,7 @@ const DetailRow = ({ label, value }) => (
 // Job Card — flatter, matches Dashboard/Profile cards
 // --------------------------------------------------
 
-const JobCard = ({ job, onView }) => (
+const JobCard = ({ job, onView }: { job: Job; onView: (job: Job) => void }) => (
   <motion.article
     layout
     initial={{ opacity: 0, y: 8 }}
@@ -492,7 +561,7 @@ const JobCard = ({ job, onView }) => (
         </span>
         <span className="flex items-center gap-2 text-xs font-medium text-gray-500">
           <FaBriefcase className="text-[#4eaa3c]" />
-          {JOB_TYPE_LABELS[job.jobType] || job.jobType || "Job"}
+          {JOB_TYPE_LABELS[job.jobType || ""] || job.jobType || "Job"}
         </span>
         <span className="flex items-center gap-2 text-xs font-medium text-gray-500">
           <FaClock className="text-[#4eaa3c]" />
@@ -534,13 +603,13 @@ const JobCard = ({ job, onView }) => (
 // --------------------------------------------------
 
 const Jobs = () => {
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedJob, setSelectedJob] = useState(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [search, setSearch] = useState("");
 
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<Filters>({
     week: "All",
     status: "All",
   });
@@ -549,7 +618,7 @@ const Jobs = () => {
     setLoading(true);
     setError("");
     try {
-      const token = await localforage.getItem("authToken");
+      const token = await localforage.getItem<string>("authToken");
       if (!token) {
         setError("Your session has expired. Please log in again.");
         return;
@@ -560,7 +629,7 @@ const Jobs = () => {
       setJobs(response.data.jobs || []);
     } catch (err) {
       console.error("Job data fetch failed:", err);
-      if ([401, 403].includes(err.response?.status)) {
+      if (axios.isAxiosError(err) && [401, 403].includes(err.response?.status || 0)) {
         await localforage.removeItem("authToken");
         setError("Your session has expired. Please log in again.");
       } else {
@@ -576,9 +645,12 @@ const Jobs = () => {
     fetchJobsData();
   }, [fetchJobsData]);
 
-  const handleUpdateStatus = async (jobId, newStatus) => {
+  const handleUpdateStatus = async (
+    jobId: string,
+    newStatus: string,
+  ): Promise<boolean> => {
     try {
-      const token = await localforage.getItem("authToken");
+      const token = await localforage.getItem<string>("authToken");
       if (!token) {
         toast.error("Your session has expired. Please log in again.");
         return false;
@@ -592,8 +664,14 @@ const Jobs = () => {
       await fetchJobsData();
       return true;
     } catch (err) {
-      console.error("Status update failed:", err.response?.data || err);
-      toast.error(err.response?.data?.message || "Failed to update status.");
+      console.error(
+        "Status update failed:",
+        axios.isAxiosError(err) ? err.response?.data : err,
+      );
+      const message = axios.isAxiosError(err)
+        ? err.response?.data?.message
+        : undefined;
+      toast.error(message || "Failed to update status.");
       return false;
     }
   };
@@ -634,8 +712,8 @@ const Jobs = () => {
 
     return result.sort(
       (a, b) =>
-        new Date(b.updatedAt || b.createdAt || 0) -
-        new Date(a.updatedAt || a.createdAt || 0),
+        new Date(b.updatedAt || b.createdAt || 0).getTime() -
+        new Date(a.updatedAt || a.createdAt || 0).getTime(),
     );
   }, [jobs, search, filters]);
 
@@ -869,7 +947,15 @@ const Jobs = () => {
 // Reusable UI
 // --------------------------------------------------
 
-const StatTile = ({ label, value, icon }) => (
+const StatTile = ({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+}) => (
   <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-5">
     <div className="flex items-center justify-between gap-2">
       <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-sm text-[#4eaa3c]">
@@ -883,7 +969,15 @@ const StatTile = ({ label, value, icon }) => (
   </div>
 );
 
-const FilterSelect = ({ value, onChange, options }) => (
+const FilterSelect = ({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}) => (
   <div className="relative">
     <select
       value={value}

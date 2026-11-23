@@ -5,7 +5,6 @@ import {
   FaSearch,
   FaUserSlash,
   FaTimes,
-  FaRegCalendarAlt,
   FaCircle,
 } from "react-icons/fa";
 import axios from "axios";
@@ -58,7 +57,6 @@ interface UserData {
 }
 
 const PRIMARY_GREEN = "#4eaa3c";
-const DEEP_GREEN = "#17231a";
 const SEND_MESSAGE_ENDPOINT = `${Api}/customer/sendMessage`;
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
 const CREATE_CONVERSATION_ENDPOINT = `${Api}/customer/createConv`;

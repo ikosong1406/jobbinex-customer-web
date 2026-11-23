@@ -17,7 +17,6 @@ import {
   FaUserEdit,
   FaRocket,
   FaCreditCard,
-  FaRegCalendarAlt,
   FaExclamationCircle,
 } from "react-icons/fa";
 import { FiArrowUpRight } from "react-icons/fi";

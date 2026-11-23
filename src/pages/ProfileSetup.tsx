@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios, { AxiosError } from "axios";
 import localforage from "localforage";
@@ -480,7 +480,7 @@ const ProfileSetup: React.FC = () => {
                 Provider
               </label>
               <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {MAIL_PROVIDERS.map(({ id, name, Icon, signupUrl }) => {
+                {MAIL_PROVIDERS.map(({ id, name, Icon }) => {
                   const active = jobProvider === id;
                   return (
                     <button
