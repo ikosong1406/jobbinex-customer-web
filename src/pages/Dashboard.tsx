@@ -404,19 +404,17 @@ const Dashboard = () => {
 
       <section className="flex flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#17231a] tracking-tight mt-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-[#17231a] tracking-tight mt-2">
             Welcome, {firstName}!
           </h1>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-gray-500 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm w-fit">
+        <div className="flex items-center gap-2 text-xs text-gray-500 bg-white border border-gray-100 rounded-xl px-4 py-1 shadow-sm w-[100px] sm:w-[150px] justify-center">
           <FaRegCalendarAlt className="text-[#4eaa3c]" />
 
           {new Date().toLocaleDateString("en-US", {
-            weekday: "long",
+            month: "short",
             day: "numeric",
-            month: "long",
-            year: "numeric",
           })}
         </div>
       </section>
@@ -426,7 +424,7 @@ const Dashboard = () => {
       <section>
         <div className="flex items-center gap-2 mb-4">
           <span className="w-1 h-5 bg-[#4eaa3c] rounded-full" />
-          <h2 className="font-bold text-gray-900 text-lg">Your next steps</h2>
+          <h2 className="font-bold text-gray-900 text-sm">Your next steps</h2>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -438,7 +436,7 @@ const Dashboard = () => {
             <div className="relative z-10">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-emerald-50 text-[#4eaa3c] flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#4eaa3c] flex items-center justify-center">
                     <FaUserEdit size={21} />
                   </div>
 
@@ -448,7 +446,7 @@ const Dashboard = () => {
                 </div>
 
                 <span
-                  className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+                  className={`text-xs font-bold px-3 py-1 rounded-full ${
                     data.profileCompletion === 100
                       ? "bg-emerald-50 text-emerald-700"
                       : "bg-amber-50 text-amber-700"
@@ -460,7 +458,7 @@ const Dashboard = () => {
                 </span>
               </div>
 
-              <div className="mt-7">
+              <div className="mt-4">
                 <div className="flex items-end justify-between mb-2">
                   <div>
                     <p className="text-xs text-gray-400 font-medium">
@@ -469,7 +467,7 @@ const Dashboard = () => {
 
                     <h2 className="text-3xl font-extrabold text-[#17231a] mt-1">
                       {data.profileCompletion}
-                      <span className="text-lg text-gray-400">%</span>
+                      <span className="text-base text-gray-400">%</span>
                     </h2>
                   </div>
                 </div>
@@ -485,12 +483,7 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <p className="text-xs text-gray-500">
-                  {data.profileCompletion === 100
-                    ? "Your profile is fully set up."
-                    : "Complete your details to improve your application experience."}
-                </p>
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 
                 <button
                   onClick={handleCompleteProfile}
