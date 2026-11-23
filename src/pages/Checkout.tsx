@@ -15,17 +15,18 @@ import SubscriptionPlans from "../components/SubscriptionPlans";
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
 const SUBSCRIPTION_ENDPOINT = `${Api}/customer/subscribe`;
 
-interface PlanData {
+export interface PlanData {
   name: string;
   expiresAt: string;
 }
 
-interface UserData {
+export interface UserData {
+  _id: string;
+  firstname: string;
+  lastname: string;
+  email: string;
+  phonenumber: string;
   plan?: PlanData;
-  firstname?: string;
-  lastname?: string;
-  email?: string;
-  phonenumber?: string;
   preferredIndustries?: string | string[];
   preferredRoles?: string | string[];
   preferredLocations?: string | string[];
@@ -291,7 +292,7 @@ const Checkout: React.FC = () => {
         <SubscriptionPlans
           plans={plans}
           currentPlanName={hasActivePlan ? currentPlanName : undefined}
-          userDetails={userData || undefined}
+          userDetails={userData ?? undefined}
           onSubscriptionSuccess={fetchUserData}
         />
       </section>
