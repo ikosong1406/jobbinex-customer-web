@@ -258,8 +258,7 @@ const Profile: React.FC = () => {
       },
       {
         label: "CV link",
-        done:
-          typeof userData.cv === "string" && userData.cv.trim().length > 0,
+        done: typeof userData.cv === "string" && userData.cv.trim().length > 0,
       },
       {
         label: "Target roles or industries",
@@ -301,7 +300,7 @@ const Profile: React.FC = () => {
             {getInitials(userData?.firstname || "", userData?.lastname || "")}
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-[#17231a] tracking-tight">
+            <h1 className="text-lg sm:text-xl font-bold text-[#17231a] tracking-tight">
               {userData?.firstname} {userData?.lastname}
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
@@ -323,11 +322,9 @@ const Profile: React.FC = () => {
                   )}
                 </>
               ) : planState === "expired" ? (
-                <span className="text-amber-600 font-medium">
-                  Plan expired — subscribe to keep applying
-                </span>
+                <span className="text-amber-600 font-medium">Plan expired</span>
               ) : (
-                "No active subscription"
+                "No subscription"
               )}
             </p>
           </div>
@@ -595,8 +592,9 @@ const Profile: React.FC = () => {
                   </h2>
 
                   <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
-                    Subscribe and we&apos;ll start applying on your behalf within
-                    24 hours. You focus on interviews — we handle the busywork.
+                    Subscribe and we&apos;ll start applying on your behalf
+                    within 24 hours. You focus on interviews — we handle the
+                    busywork.
                   </p>
 
                   {showSubscribeCTA && (

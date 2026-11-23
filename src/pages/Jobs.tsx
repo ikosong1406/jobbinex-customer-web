@@ -152,8 +152,7 @@ const StatusBadge = ({ status }: { status: JobStatus }) => (
 // --------------------------------------------------
 
 const SectionHeader = ({
-  title,
-  description,
+  title
 }: {
   title: string;
   description?: string;
@@ -161,11 +160,8 @@ const SectionHeader = ({
   <div className="mb-4">
     <div className="flex items-center gap-2">
       <span className="w-1 h-5 bg-[#4eaa3c] rounded-full" />
-      <h2 className="font-bold text-gray-900 text-lg">{title}</h2>
+      <h3 className="font-bold text-gray-900 text-lg">{title}</h3>
     </div>
-    {description && (
-      <p className="text-xs text-gray-400 mt-1 pl-3">{description}</p>
-    )}
   </div>
 );
 
@@ -780,11 +776,11 @@ const Jobs = () => {
   }
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto space-y-6 px-2 sm:px-4 py-6">
+    <div className="w-full max-w-[1400px] mx-auto space-y-6 px-2 sm:px-4 py-4">
       {/* ── Header — matches Dashboard/Profile identity row ── */}
       <section className="flex flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#17231a] tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-[#17231a] tracking-tight">
             Your job pipeline
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -831,12 +827,9 @@ const Jobs = () => {
       <section>
         <SectionHeader
           title="Opportunities"
-          description={`${filteredJobs.length} ${
-            filteredJobs.length === 1 ? "opportunity" : "opportunities"
-          } in view`}
         />
 
-        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
+        <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-6">
           <div className="flex flex-col lg:flex-row lg:items-center gap-3">
             <div className="relative flex-1">
               <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-gray-400" />
@@ -962,7 +955,7 @@ const StatTile = ({
         {icon}
       </div>
     </div>
-    <p className="mt-3 text-2xl sm:text-3xl font-bold tracking-tight text-[#17231a]">
+    <p className="mt-3 text-lg sm:text-xl font-bold tracking-tight text-[#17231a]">
       {value}
     </p>
     <p className="mt-0.5 text-[11px] font-semibold text-gray-400">{label}</p>
