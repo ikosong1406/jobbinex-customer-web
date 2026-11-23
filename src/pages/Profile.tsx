@@ -288,20 +288,20 @@ const Profile: React.FC = () => {
   }
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6 py-6">
+    <div className="w-full max-w-[1400px] mx-auto space-y-6 px-2 py-4">
       <Toaster position="top-center" />
 
       {/* Header */}
       <section className="flex flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold text-white shadow-md"
+            className="w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-bold text-white shadow-md"
             style={{ backgroundColor: "#17231a" }}
           >
             {getInitials(userData?.firstname || "", userData?.lastname || "")}
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#17231a] tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-[#17231a] tracking-tight">
               {userData?.firstname} {userData?.lastname}
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
@@ -346,7 +346,7 @@ const Profile: React.FC = () => {
 
       {/* Next steps */}
       <section>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-2">
           <span className="w-1 h-5 bg-[#4eaa3c] rounded-full" />
           <h2 className="font-bold text-gray-900 text-lg">Your next steps</h2>
         </div>
@@ -476,7 +476,7 @@ const Profile: React.FC = () => {
                     </span>
                   </div>
 
-                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
+                  <h2 className="text-lg sm:text-2xl font-bold mt-6 leading-snug max-w-md">
                     {getPlanExpiry(userData?.plan) ? (
                       <>
                         Renews on{" "}
@@ -544,7 +544,7 @@ const Profile: React.FC = () => {
                     </span>
                   </div>
 
-                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
+                  <h2 className="text-lg sm:text-2xl font-bold mt-6 leading-snug max-w-md">
                     Subscribe to keep your applications running.
                   </h2>
 
@@ -590,7 +590,7 @@ const Profile: React.FC = () => {
                     </span>
                   </div>
 
-                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
+                  <h2 className="text-lg sm:text-2xl font-bold mt-6 leading-snug max-w-md">
                     Subscribe and let your next opportunity find you.
                   </h2>
 
