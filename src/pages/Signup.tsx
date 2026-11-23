@@ -198,17 +198,17 @@ const Signup: React.FC = () => {
           </p>
         </div>
         {/* Signup Form Section */}
-        <div className="w-full md:w-[45%] bg-white p-6 md:p-12 flex flex-col justify-center shadow-2xl rounded-xl">
-          <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+        <div className="w-full md:w-[45%] bg-white p-5 md:p-12 flex flex-col justify-center shadow-2xl rounded-xl">
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
             Create your account
           </h2>
-          <p className="mb-8 text-gray-700">
+          <p className="mb-5 text-gray-700">
             Let's get you started with your profile
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* First Name / Last Name */}
-            <div className="flex gap-4">
+            <div className="flex gap-2">
               <input
                 type="text"
                 name="firstname"
@@ -255,7 +255,7 @@ const Signup: React.FC = () => {
             <div className="relative">
               <label
                 htmlFor="password"
-                className="block text-gray-700 text-sm mb-2 font-medium"
+                className="block text-gray-700 text-sm mb-1 font-medium"
               >
                 Password
               </label>
@@ -316,7 +316,7 @@ const Signup: React.FC = () => {
             <div className="relative">
               <label
                 htmlFor="confirmPassword"
-                className="block text-gray-700 text-sm mb-2 font-medium"
+                className="block text-gray-700 text-sm mb-1 font-medium"
               >
                 Confirm Password
               </label>

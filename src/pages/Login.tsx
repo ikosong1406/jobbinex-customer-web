@@ -82,7 +82,7 @@ const Login: React.FC = () => {
     try {
       const response = await axios.post<LoginResponse>(
         LOGIN_ENDPOINT,
-        formData
+        formData,
       );
 
       const { token, message } = response.data;
@@ -160,15 +160,15 @@ const Login: React.FC = () => {
         </div>
 
         {/* Right-side Form Section */}
-        <div className="w-full md:w-[45%] bg-white p-6 md:p-12 flex flex-col justify-center shadow-2xl rounded-xl">
+        <div className="w-full md:w-[45%] bg-white p-5 md:p-12 flex flex-col justify-center shadow-2xl rounded-xl">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
             Hello there,
           </h2>
-          <p className="mb-8 text-gray-700">
+          <p className="mb-5 text-gray-700">
             Welcome Back, let's have you logged in
           </p>
 
-          <form className="space-y-6" onSubmit={handleLogin}>
+          <form className="space-y-4" onSubmit={handleLogin}>
             {/* Email Input */}
             <div>
               <label

@@ -63,7 +63,7 @@ const ForgotPassword: React.FC = () => {
 
   const handleKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement>,
-    index: number
+    index: number,
   ): void => {
     if (e.key === "Backspace" && e.currentTarget.value === "" && index > 0) {
       // Move focus to the previous input on backspace if current field is empty
@@ -246,7 +246,7 @@ const ForgotPassword: React.FC = () => {
         </div>
 
         {/* Right Form Section */}
-        <div className="w-full md:w-[45%] bg-white p-6 md:p-12 flex flex-col justify-center shadow-2xl rounded-xl">
+        <div className="w-full md:w-[45%] bg-white p-5 md:p-12 flex flex-col justify-center shadow-2xl rounded-xl">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
             Forgot Password
           </h2>
@@ -254,8 +254,8 @@ const ForgotPassword: React.FC = () => {
             {step === 1
               ? "Enter your email to receive a reset code."
               : step === 2
-              ? "Enter the 4-digit code sent to your email."
-              : "Set your new password below."}
+                ? "Enter the 4-digit code sent to your email."
+                : "Set your new password below."}
           </p>
 
           {/* Progress Bar */}
@@ -278,12 +278,12 @@ const ForgotPassword: React.FC = () => {
 
           <form
             onSubmit={step === 3 ? handleSubmit : nextStep}
-            className="space-y-6"
+            className="space-y-4"
           >
             {/* Step 1 - Email */}
             {step === 1 && (
               <>
-                <label className="block text-gray-700 text-sm mb-2">
+                <label className="block text-gray-700 text-sm mb-1">
                   Email Address
                 </label>
                 <input
@@ -301,7 +301,7 @@ const ForgotPassword: React.FC = () => {
             {/* Step 2 - Code Verification */}
             {step === 2 && (
               <>
-                <label className="block text-gray-700 text-sm mb-2">
+                <label className="block text-gray-700 text-sm mb-1">
                   Verification Code
                 </label>
                 <div className="flex justify-between space-x-4">
@@ -329,7 +329,7 @@ const ForgotPassword: React.FC = () => {
               <>
                 {/* New Password Field */}
                 <div className="relative">
-                  <label className="block text-gray-700 text-sm mb-2">
+                  <label className="block text-gray-700 text-sm mb-1">
                     New Password
                   </label>
                   <div className="relative">
