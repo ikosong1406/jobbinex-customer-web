@@ -246,7 +246,7 @@ const ForgotPassword: React.FC = () => {
         </div>
 
         {/* Right Form Section */}
-        <div className="w-full md:w-[45%] bg-white p-10 md:p-14 flex flex-col justify-center shadow-2xl rounded-xl">
+        <div className="w-full md:w-[45%] bg-white p-6 md:p-12 flex flex-col justify-center shadow-2xl rounded-xl">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
             Forgot Password
           </h2>
