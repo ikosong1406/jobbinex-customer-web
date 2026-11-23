@@ -130,7 +130,6 @@ const Checkout: React.FC = () => {
         "Job matching based on your profile",
         "CV review and optimisation",
         "Cover letter preparation",
-        "AI-assisted application preparation",
         "Human review of applications",
         "Application status tracking",
         "Weekly application summary",
@@ -152,9 +151,7 @@ const Checkout: React.FC = () => {
         "Priority application processing",
         "Advanced CV and cover letter optimisation",
         "Role-specific application personalisation",
-        "AI-powered job discovery and matching",
         "Human-reviewed application submissions",
-        "LinkedIn profile refinement",
         "Targeted job research assistance",
         "Detailed application progress reports",
         "Priority customer support",
@@ -197,7 +194,7 @@ const Checkout: React.FC = () => {
   }
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6 py-6">
+    <div className="w-full max-w-[1400px] mx-auto space-y-6 px-2 py-4">
       <Toaster position="top-center" />
 
       {/* Header */}
