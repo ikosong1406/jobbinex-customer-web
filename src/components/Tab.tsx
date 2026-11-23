@@ -343,7 +343,7 @@ const Tab = () => {
       {/* MOBILE HEADER */}
       <header
         className="sticky top-0 z-40 bg-[#111a14]
-        backdrop-blur-xl border-b border-gray-100 px-5 py-4"
+        backdrop-blur-xl border-b border-gray-100 px-5 py-3"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -368,7 +368,7 @@ const Tab = () => {
       </main>
 
       {/* FLOATING BOTTOM NAVIGATION */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4">
+      <div className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-2">
         <nav
           className="max-w-lg mx-auto flex items-center justify-around
           bg-[#111a14] rounded-2xl shadow-2xl shadow-black/20
@@ -381,7 +381,7 @@ const Tab = () => {
               end
               className={({ isActive }) => `
                 flex flex-col items-center justify-center gap-1
-                flex-1 py-2.5 rounded-xl transition-all duration-300
+                flex-1 py-1 rounded-xl transition-all duration-300
                 ${
                   isActive
                     ? "bg-[#4eaa3c] text-white"

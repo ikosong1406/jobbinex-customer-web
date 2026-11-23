@@ -399,7 +399,7 @@ const Dashboard = () => {
   const noAssistant = !hasAssistant;
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto space-y-6 p-2">
+    <div className="w-full max-w-[1600px] mx-auto space-y-4 p-2">
       {/* WELCOME HEADER */}
 
       <section className="flex flex-row sm:items-center justify-between gap-4">
@@ -520,7 +520,7 @@ const Dashboard = () => {
 
                       <div>
                         <h3 className="font-bold text-white">
-                          Your Job Assistant
+                          Your Assistant
                         </h3>
                       </div>
                     </div>
@@ -678,30 +678,30 @@ const Dashboard = () => {
                 <>
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-[#4eaa3c]/20 flex items-center justify-center text-[#8cdb78]">
+                      <div className="w-10 h-10 rounded-xl bg-[#4eaa3c]/20 flex items-center justify-center text-[#8cdb78]">
                         <FaRocket size={22} />
                       </div>
 
                       <div>
-                        <h3 className="font-bold text-white">
-                          Activate Your Job Assistant
-                        </h3>
+                        <h4 className="font-bold text-white">
+                          Activate Assistant
+                        </h4>
                       </div>
                     </div>
 
                     <span className="bg-amber-400/10 text-amber-300 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
-                      Not activated
+                      inactive
                     </span>
                   </div>
 
-                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
+                  <h2 className="text-lg sm:text-xl font-bold mt-4 leading-snug max-w-md">
                     Let your next career opportunity find you.
                   </h2>
 
                   <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
                     Unlock your personal job assistant to help manage
-                    applications, track opportunities and stay on top of
-                    interviews.
+                    applications and stay on top of
+                    opportunities.
                   </p>
 
                   <button
