@@ -20,6 +20,7 @@ import {
   FaRegCalendarAlt,
   FaRocket,
   FaChartLine,
+  FaCheckCircle,
 } from "react-icons/fa";
 
 import { FiArrowUpRight } from "react-icons/fi";
@@ -68,6 +69,7 @@ interface UserData {
   assistant?: Assistant | null;
   notifications?: unknown[];
   plan?: Plan | null;
+  claimedFree?: boolean;
 }
 
 interface WeeklyApplication {
@@ -96,6 +98,7 @@ interface DashboardData {
   statusCounts: StatusCounts;
   plan: Plan | null;
   profileFullyCompleted: boolean;
+  claimedFree: boolean;
 }
 
 type PlanState = "active" | "expired" | "free";
@@ -309,6 +312,7 @@ const Dashboard = () => {
           statusCounts: getStatusCounts(jobs),
           plan: user.plan || null,
           profileFullyCompleted: isProfileFullyCompleted(user),
+          claimedFree: user.claimedFree === true,
         });
       } catch (error: unknown) {
         console.error("Dashboard data fetch failed:", error);
@@ -347,8 +351,14 @@ const Dashboard = () => {
     navigate("/checkout");
   };
 
-  const handleClaimFreeApplication = (): void => {
+  const handleClaimFreeApplication = async (): Promise<void> => {
     if (!dashboardData) return;
+
+    // Guard against double-claiming.
+    if (dashboardData.claimedFree) {
+      toast.error("You have already claimed your free application.");
+      return;
+    }
 
     if (!dashboardData.profileFullyCompleted) {
       toast.error(
@@ -358,13 +368,49 @@ const Dashboard = () => {
       return;
     }
 
-    // Profile is complete — proceed with claiming the free application.
-    // TODO: Replace this toast + navigation with your actual API call, e.g.
-    // await axios.post(`${Api}/customer/claim-free-application`, {}, {
-    //   headers: { Authorization: `Bearer ${token}` },
-    // });
-    toast.success("Free application claimed! Redirecting...");
-    navigate("/jobs");
+    try {
+      const token = await localforage.getItem<string>("authToken");
+
+      if (!token) {
+        toast.error("Your session has expired. Please log in again.");
+        return;
+      }
+
+      await axios.post(
+        `${Api}/customer/claim`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      // Flip local state so the button can't be used again without a refetch.
+      setDashboardData((prev) =>
+        prev ? { ...prev, claimedFree: true } : prev,
+      );
+
+      toast.success("Free application claimed!");
+    } catch (error: unknown) {
+      console.error("Claim free application failed:", error);
+
+      // if (
+      //   axios.isAxiosError(error) &&
+      //   [401, 403].includes(error.response?.status || 0)
+      // ) {
+      //   toast.error("Your session has expired. Please log in again.");
+      //   await localforage.removeItem("authToken");
+      //   navigate("/", { replace: true });
+      // } else if (
+      //   axios.isAxiosError(error) &&
+      //   error.response?.status === 409
+      // ) {
+      //   // Backend says it's already been claimed — sync local state.
+      //   setDashboardData((prev) =>
+      //     prev ? { ...prev, claimedFree: true } : prev,
+      //   );
+      //   toast.error("You have already claimed your free application.");
+      // } else {
+      //   toast.error("Failed to claim your free application. Please try again.");
+      // }
+    }
   };
 
   if (loading) {
@@ -484,7 +530,6 @@ const Dashboard = () => {
               </div>
 
               <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-
                 <button
                   onClick={handleCompleteProfile}
                   className="inline-flex items-center justify-center gap-2 bg-[#17231a] hover:bg-[#263d2a] text-white px-5 py-3 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap"
@@ -519,9 +564,7 @@ const Dashboard = () => {
                       </div>
 
                       <div>
-                        <h3 className="font-bold text-white">
-                          Your Assistant
-                        </h3>
+                        <h3 className="font-bold text-white">Your Assistant</h3>
                       </div>
                     </div>
 
@@ -560,7 +603,7 @@ const Dashboard = () => {
                 </>
               )}
 
-              {/* ASSISTANT + FREE PLAN (null / empty plan) => CLAIM FREE APPLICATION */}
+              {/* ASSISTANT + FREE PLAN (null / empty plan) */}
               {isFreeWithAssistant && (
                 <>
                   <div className="flex justify-between items-start gap-3">
@@ -599,29 +642,56 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  <h2 className="text-lg sm:text-xl font-bold mt-4 leading-snug max-w-md">
-                    Claim your free application.
-                  </h2>
+                  {data.claimedFree ? (
+                    <>
+                      <h2 className="text-lg sm:text-xl font-bold mt-4 leading-snug max-w-md flex items-center gap-2">
+                        <FaCheckCircle className="text-[#8cdb78]" size={20} />
+                        Free application claimed.
+                      </h2>
 
-                  <p className="text-sm text-gray-400 mt-1 leading-relaxed max-w-md">
-                    {data.profileFullyCompleted
-                      ? "Your profile is complete. Claim your free application to get started with your assistant."
-                      : "Complete your profile (including your CV) to claim your free application."}
-                  </p>
+                      <p className="text-sm text-gray-400 mt-1 leading-relaxed max-w-md">
+                        Upgrade your plan to keep your assistant applying for
+                        you.
+                      </p>
 
-                  <button
-                    onClick={handleClaimFreeApplication}
-                    className="mt-4 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all duration-300 group"
-                  >
-                    {data.profileFullyCompleted
-                      ? "Claim Free Application"
-                      : "Complete Profile to Claim"}
+                      <button
+                        onClick={handleSubscribe}
+                        className="mt-4 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all duration-300 group"
+                      >
+                        Upgrade Plan
+                        <FiArrowUpRight
+                          size={18}
+                          className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
+                        />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <h2 className="text-lg sm:text-xl font-bold mt-4 leading-snug max-w-md">
+                        Claim your free application.
+                      </h2>
 
-                    <FiArrowUpRight
-                      size={18}
-                      className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
-                    />
-                  </button>
+                      <p className="text-sm text-gray-400 mt-1 leading-relaxed max-w-md">
+                        {data.profileFullyCompleted
+                          ? "Your profile is complete. Claim your free application to get started with your assistant."
+                          : "Complete your profile to claim your free application."}
+                      </p>
+
+                      <button
+                        onClick={handleClaimFreeApplication}
+                        className="mt-4 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all duration-300 group"
+                      >
+                        {data.profileFullyCompleted
+                          ? "Claim Free Application"
+                          : "Complete Profile"}
+
+                        <FiArrowUpRight
+                          size={18}
+                          className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"
+                        />
+                      </button>
+                    </>
+                  )}
                 </>
               )}
 
@@ -636,27 +706,23 @@ const Dashboard = () => {
 
                       <div>
                         <h3 className="font-bold text-white">
-                          Subscription Required
+                          Action Required
                         </h3>
-
-                        <p className="text-xs text-gray-400 mt-1">
-                          Your assistant is assigned to you.
-                        </p>
                       </div>
                     </div>
 
                     <span className="bg-amber-400/10 text-amber-300 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
-                      Inactive
+                      Expired
                     </span>
                   </div>
 
-                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
+                  <h2 className="text-xl sm:text-2xl font-bold mt-3 leading-snug max-w-md">
                     Your subscription has expired.
                   </h2>
 
-                  <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
-                    Your job assistant is assigned, but your plan has expired.
-                    Renew your subscription to continue using our job
+                  <p className="text-sm text-gray-400 mt-1 leading-relaxed max-w-md">
+                    Your job assistant is still assigned, but your plan has
+                    expired. Renew your subscription to continue using our job
                     application services.
                   </p>
 
@@ -700,15 +766,14 @@ const Dashboard = () => {
 
                   <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
                     Unlock your personal job assistant to help manage
-                    applications and stay on top of
-                    opportunities.
+                    applications and stay on top of opportunities.
                   </p>
 
                   <button
                     onClick={handleSubscribe}
                     className="mt-6 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all duration-300 group"
                   >
-                    Explore Subscription Plans
+                    Explore Plans
                     <FiArrowUpRight
                       size={18}
                       className="group-hover:translate-x-1 group-hover:-translate-y-1 transition"

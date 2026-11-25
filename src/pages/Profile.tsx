@@ -355,9 +355,7 @@ const Profile: React.FC = () => {
                     <FaUserEdit size={20} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900">
-                      Profile setup
-                    </h3>
+                    <h3 className="font-bold text-gray-900">Profile setup</h3>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {completedCount} of {checklist.length} complete
                     </p>
@@ -525,11 +523,8 @@ const Profile: React.FC = () => {
                       </div>
                       <div>
                         <h3 className="font-bold text-white">
-                          Subscription expired
+                          Action Required
                         </h3>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {currentPlanName || "Previous plan"}
-                        </p>
                       </div>
                     </div>
                     <span className="bg-amber-400/10 text-amber-300 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
@@ -538,7 +533,7 @@ const Profile: React.FC = () => {
                   </div>
 
                   <h2 className="text-lg sm:text-2xl font-bold mt-6 leading-snug max-w-md">
-                    Subscribe to keep your applications running.
+                    Your subscription has expired.
                   </h2>
 
                   <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">

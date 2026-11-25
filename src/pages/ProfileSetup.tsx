@@ -633,9 +633,6 @@ const ProfileSetup: React.FC = () => {
               suggestions={ALL_CITIES}
               placeholder="Type or pick a city…"
             />
-            <p className="text-[11px] text-gray-400">
-              We operate in the UK, Europe, and North America.
-            </p>
           </div>
         )}
 
