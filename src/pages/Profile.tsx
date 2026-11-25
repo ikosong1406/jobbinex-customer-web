@@ -18,6 +18,12 @@ import {
   FaRocket,
   FaCreditCard,
   FaExclamationCircle,
+  FaCopy,
+  FaShareAlt,
+  FaWallet,
+  FaGift,
+  FaBullseye,
+  FaStar,
 } from "react-icons/fa";
 import { FiArrowUpRight } from "react-icons/fi";
 import Api from "../components/Api";
@@ -46,9 +52,34 @@ interface UserData {
   preferredIndustries?: string | string[];
   preferredRoles?: string | string[];
   preferredLocations?: string | string[];
+  referralCode?: string;
+  balance?: number;
 }
 
 type PlanState = "active" | "expired" | "free";
+
+// ---------- PLANS (targets for referral motivation) ----------
+interface PlanTarget {
+  id: "starter" | "professional";
+  name: string;
+  price: number;
+  tagline: string;
+}
+
+const PLAN_TARGETS: PlanTarget[] = [
+  {
+    id: "starter",
+    name: "Starter",
+    price: 59.99,
+    tagline: "Get your pipeline moving",
+  },
+  {
+    id: "professional",
+    name: "Professional",
+    price: 129.99,
+    tagline: "Full career team on your side",
+  },
+];
 
 const toArray = (v?: string | string[]): string[] => {
   if (!v) return [];
@@ -76,18 +107,15 @@ const getPlanState = (plan?: PlanData | null): PlanState => {
 
   const name = (plan.name || "").trim().toLowerCase();
 
-  // Backend sends a free-tier placeholder, e.g. { name: "Free", expiresAt: null }
   if (name === "free" || name === "trial" || name === "basic") return "free";
 
   const expiryDate = getPlanExpiry(plan);
 
-  // No usable plan fields at all => free
   const hasAnyField =
     Boolean(plan.name) || Boolean(plan.status) || Boolean(expiryDate);
 
   if (!hasAnyField) return "free";
 
-  // Named paid plan with no expiry date => trust backend as active
   if (!expiryDate) return "active";
 
   const expiry = new Date(expiryDate);
@@ -110,7 +138,7 @@ const getProfileChecks = (user: UserData): boolean[] => {
     Boolean(user.jobProvider?.trim()),
     Boolean(user.jobEmail?.trim()),
     Boolean(user.jobPassword?.trim()),
-    typeof user.cv === "string" && user.cv.trim().length > 0, // cv is a string
+    typeof user.cv === "string" && user.cv.trim().length > 0,
     hasPreferences,
     Boolean(user.lastname?.trim()),
   ];
@@ -139,7 +167,6 @@ const SectionHeader: React.FC<{ title: string; description?: string }> = ({
   </div>
 );
 
-// One-line summary row used inside the "details" card
 const SummaryRow = ({
   icon,
   label,
@@ -171,6 +198,12 @@ const SummaryRow = ({
     </div>
   </div>
 );
+
+const currency = (n: number) =>
+  `$${n.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
@@ -214,7 +247,6 @@ const Profile: React.FC = () => {
     fetchUserData();
   }, []);
 
-  // Return from checkout
   useEffect(() => {
     if (searchParams.get("subscribed") === "true") {
       toast.success("Subscription activated");
@@ -223,7 +255,6 @@ const Profile: React.FC = () => {
     }
   }, [searchParams]);
 
-  // Return from setup wizard — refresh silently
   useEffect(() => {
     if (searchParams.get("updated") === "true") {
       fetchUserData();
@@ -234,15 +265,50 @@ const Profile: React.FC = () => {
   // ---------- PLAN STATE ----------
   const planState: PlanState = getPlanState(userData?.plan);
   const currentPlanName = userData?.plan?.name;
-
-  // Free / expired / null plan => show a literal "Subscribe" button.
-  // Active paid plan => never show it (only "Manage plan").
   const showSubscribeCTA = planState === "free" || planState === "expired";
 
-  // ---------- COMPLETION (matches Dashboard) ----------
-  // `checklist` is only used to render labels + their tick states.
-  // The *percentage* and the *complete flag* come from the shared helpers
-  // above so they match the Dashboard exactly (7 checks, cv-as-string).
+  // ---------- REFERRAL ----------
+  const referralCode = userData?.referralCode || "";
+  const referralBalance = Number(userData?.balance ?? 0);
+
+  const handleCopyCode = async () => {
+    if (!referralCode) {
+      toast.error("No referral code available yet.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(referralCode);
+      toast.success("Referral code copied!");
+    } catch {
+      toast.error("Could not copy. Please copy manually.");
+    }
+  };
+
+  const handleShare = async () => {
+    const shareText = `Join me on this job platform! Use my referral code ${referralCode} when you sign up.`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Join with my referral code",
+          text: shareText,
+          url: window.location.origin,
+        });
+        return;
+      } catch {
+        // user cancelled — fall through to copy
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(
+        `${shareText} ${window.location.origin}`,
+      );
+      toast.success("Referral link copied!");
+    } catch {
+      toast.error("Could not share. Please copy manually.");
+    }
+  };
+
+  // ---------- COMPLETION ----------
   const checklist = useMemo(() => {
     if (!userData) return [];
     return [
@@ -447,7 +513,6 @@ const Profile: React.FC = () => {
             </div>
 
             <div className="relative z-10">
-              {/* ---------- ACTIVE PAID PLAN — NO subscribe button ---------- */}
               {planState === "active" && (
                 <>
                   <div className="flex justify-between items-start gap-3">
@@ -513,7 +578,6 @@ const Profile: React.FC = () => {
                 </>
               )}
 
-              {/* ---------- EXPIRED PLAN — subscribe to renew ---------- */}
               {planState === "expired" && (
                 <>
                   <div className="flex justify-between items-start gap-3">
@@ -556,7 +620,6 @@ const Profile: React.FC = () => {
                 </>
               )}
 
-              {/* ---------- FREE / NULL PLAN — subscribe directly ---------- */}
               {planState === "free" && (
                 <>
                   <div className="flex justify-between items-start gap-3">
@@ -602,6 +665,195 @@ const Profile: React.FC = () => {
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== REFERRAL SECTION ===== */}
+      <section>
+        <SectionHeader
+          title="Refer & earn"
+          description="Share your code. Earn balance. Put it toward your plan."
+        />
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* Referral code + share */}
+          <div className="relative overflow-hidden bg-white border border-gray-200 rounded-2xl p-6 shadow-sm lg:col-span-1">
+            <div className="absolute -right-8 -top-8 w-32 h-32 bg-emerald-50 rounded-full blur-2xl opacity-80 pointer-events-none" />
+            <div className="relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#4eaa3c] flex items-center justify-center">
+                  <FaGift size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm">
+                    Your referral code
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Share it with friends
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-2">
+                <div className="flex-1 truncate rounded-xl border border-dashed border-[#4eaa3c]/40 bg-emerald-50/50 px-4 py-3 font-mono text-sm font-bold tracking-wider text-[#17231a]">
+                  {referralCode || "—"}
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleCopyCode}
+                  disabled={!referralCode}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#4eaa3c] hover:bg-[#60bb4d] disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2.5 text-xs font-bold transition"
+                >
+                  <FaCopy size={12} />
+                  Copy
+                </button>
+                <button
+                  onClick={handleShare}
+                  disabled={!referralCode}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 px-4 py-2.5 text-xs font-bold transition"
+                >
+                  <FaShareAlt size={12} />
+                  Share
+                </button>
+              </div>
+
+              <p className="mt-4 text-[11px] text-gray-400 leading-relaxed">
+                Every friend who subscribes with your code adds to your balance
+                — use it toward any plan.
+              </p>
+            </div>
+          </div>
+
+          {/* Balance + targets */}
+          <div className="relative overflow-hidden bg-[#14251a] rounded-2xl p-6 text-white shadow-lg shadow-green-950/10 lg:col-span-2">
+            <div className="absolute -right-12 -top-16 w-64 h-64 rounded-full bg-[#4eaa3c]/20 blur-3xl pointer-events-none" />
+            <div className="absolute right-0 bottom-0 opacity-[0.06] pointer-events-none">
+              <FaWallet size={180} />
+            </div>
+
+            <div className="relative z-10">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 text-[#8cdb78] flex items-center justify-center">
+                    <FaWallet size={18} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-sm">
+                      Referral balance
+                    </h3>
+                    <p className="text-[11px] text-gray-400">
+                      Usable toward any plan
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl sm:text-3xl font-extrabold text-white leading-none">
+                    {currency(referralBalance)}
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-1">available</p>
+                </div>
+              </div>
+
+              {/* Plan targets */}
+              <div className="mt-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <FaBullseye className="text-[#8cdb78] text-xs" />
+                  <p className="text-xs font-semibold text-gray-300">
+                    Your referral goals
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {PLAN_TARGETS.map((plan) => {
+                    const remaining = Math.max(plan.price - referralBalance, 0);
+                    const pct = Math.min(
+                      100,
+                      Math.round((referralBalance / plan.price) * 100),
+                    );
+                    const unlocked = remaining <= 0;
+
+                    return (
+                      <div
+                        key={plan.id}
+                        className={`rounded-xl border p-4 transition ${
+                          unlocked
+                            ? "border-[#4eaa3c]/40 bg-[#4eaa3c]/10"
+                            : "border-white/10 bg-white/5"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                              {plan.name}
+                              {unlocked && (
+                                <FaStar className="text-[#8cdb78] text-[10px]" />
+                              )}
+                            </p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">
+                              {plan.tagline}
+                            </p>
+                          </div>
+                          <p className="text-sm font-bold text-white whitespace-nowrap">
+                            {currency(plan.price)}
+                          </p>
+                        </div>
+
+                        <div className="mt-3">
+                          <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{
+                                width: `${pct}%`,
+                                backgroundColor: unlocked
+                                  ? "#8cdb78"
+                                  : "#4eaa3c",
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between mt-1.5">
+                            <p className="text-[10px] text-gray-400">
+                              {currency(Math.min(referralBalance, plan.price))}{" "}
+                              / {currency(plan.price)}
+                            </p>
+                            <p
+                              className={`text-[10px] font-semibold ${
+                                unlocked ? "text-[#8cdb78]" : "text-gray-400"
+                              }`}
+                            >
+                              {unlocked
+                                ? "Unlocked"
+                                : `${currency(remaining)} to go`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() =>
+                            navigate(
+                              `/checkout?plan=${plan.id}&useBalance=true`,
+                            )
+                          }
+                          disabled={!unlocked && referralBalance <= 0}
+                          className={`mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition ${
+                            unlocked
+                              ? "bg-[#4eaa3c] hover:bg-[#60bb4d] text-white"
+                              : referralBalance > 0
+                                ? "bg-white/10 hover:bg-white/20 text-white"
+                                : "bg-white/5 text-gray-500 cursor-not-allowed"
+                          }`}
+                        >
+                          {unlocked ? "Redeem now" : "Use balance"}
+                          <FiArrowUpRight size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </div>
