@@ -555,17 +555,7 @@ const Profile: React.FC = () => {
                     attention.
                   </p>
 
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <button
-                      onClick={() => navigate("/jobs")}
-                      className="inline-flex items-center justify-center gap-2 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-5 py-3 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all group"
-                    >
-                      View job pipeline
-                      <FaArrowRight
-                        className="group-hover:translate-x-1 transition"
-                        size={12}
-                      />
-                    </button>
+                  <div className="mt-4 flex flex-wrap gap-3">
                     <button
                       onClick={() => navigate("/checkout")}
                       className="inline-flex items-center justify-center gap-2 border border-white/20 bg-white/5 hover:bg-white/10 text-white px-5 py-3 rounded-xl text-sm font-semibold transition"
