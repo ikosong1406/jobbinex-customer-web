@@ -565,14 +565,14 @@ const Dashboard = () => {
                 <>
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-[#4eaa3c]/20 flex items-center justify-center text-[#8cdb78]">
+                      <div className="w-10 h-10 rounded-xl bg-[#4eaa3c]/20 flex items-center justify-center text-[#8cdb78]">
                         <FaUserTie size={22} />
                       </div>
 
                       <div>
-                        <h3 className="font-bold text-white">
+                        <h4 className="font-bold text-white">
                           Your Job Assistant
-                        </h3>
+                        </h4>
                       </div>
                     </div>
 
@@ -581,8 +581,8 @@ const Dashboard = () => {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-3 mt-7">
-                    <div className="w-12 h-12 rounded-full bg-[#4eaa3c] flex items-center justify-center text-white font-bold">
+                  <div className="flex items-center gap-3 mt-5">
+                    <div className="w-10 h-10 rounded-full bg-[#4eaa3c] flex items-center justify-center text-white font-bold">
                       {getAssistantInitials(data.assistant)}
                     </div>
 
@@ -591,7 +591,7 @@ const Dashboard = () => {
                         {data.assistant?.firstname} {data.assistant?.lastname}
                       </h4>
 
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-gray-400">
                         {data.assistant?.status === "online"
                           ? "Available now"
                           : "Currently unavailable"}
@@ -599,11 +599,11 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  <h2 className="text-xl sm:text-2xl font-bold mt-6 leading-snug max-w-md">
+                  <h2 className="text-lg sm:text-xl font-bold mt-4 leading-snug max-w-md">
                     Claim your free application.
                   </h2>
 
-                  <p className="text-sm text-gray-400 mt-2 leading-relaxed max-w-md">
+                  <p className="text-sm text-gray-400 mt-1 leading-relaxed max-w-md">
                     {data.profileFullyCompleted
                       ? "Your profile is complete. Claim your free application to get started with your assistant."
                       : "Complete your profile (including your CV) to claim your free application."}
@@ -611,7 +611,7 @@ const Dashboard = () => {
 
                   <button
                     onClick={handleClaimFreeApplication}
-                    className="mt-6 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all duration-300 group"
+                    className="mt-4 inline-flex items-center justify-center gap-3 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-black/20 transition-all duration-300 group"
                   >
                     {data.profileFullyCompleted
                       ? "Claim Free Application"
