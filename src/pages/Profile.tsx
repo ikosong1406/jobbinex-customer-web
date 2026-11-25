@@ -199,7 +199,7 @@ const SummaryRow = ({
 );
 
 const currency = (n: number) =>
-  `$${n.toLocaleString(undefined, {
+  `£${n.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
