@@ -591,13 +591,19 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  <div className="mt-6">
+                  <div className="mt-4 flex justify-between">
+                    <button
+                      onClick={() => navigate("/inbox")}
+                      className="inline-flex items-center gap-2 bg-white text-[#4eaa3c] px-5 py-3 border-[#4eaa3c] border-2 rounded-xl text-sm font-semibold transition"
+                    >
+                      Message
+                      <FaArrowRight size={13} />
+                    </button>
                     <button
                       onClick={() => navigate("/jobs")}
                       className="inline-flex items-center gap-2 bg-[#4eaa3c] hover:bg-[#60bb4d] text-white px-5 py-3 rounded-xl text-sm font-semibold transition"
                     >
-                      View Job Applications
-                      <FaArrowRight size={13} />
+                      View Application
                     </button>
                   </div>
                 </>
