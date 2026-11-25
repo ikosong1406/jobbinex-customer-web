@@ -22,7 +22,6 @@ import {
   FaShareAlt,
   FaWallet,
   FaGift,
-  FaBullseye,
   FaStar,
 } from "react-icons/fa";
 import { FiArrowUpRight } from "react-icons/fi";
