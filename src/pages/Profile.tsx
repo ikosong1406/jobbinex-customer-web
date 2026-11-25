@@ -363,7 +363,7 @@ const Profile: React.FC = () => {
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-[#17231a] tracking-tight">
-              {userData?.firstname} {userData?.lastname}
+              {userData?.firstname}
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {planState === "active" ? (
@@ -720,11 +720,6 @@ const Profile: React.FC = () => {
                   Share
                 </button>
               </div>
-
-              <p className="mt-4 text-[11px] text-gray-400 leading-relaxed">
-                Every friend who subscribes with your code adds to your balance
-                — use it toward any plan.
-              </p>
             </div>
           </div>
 
@@ -760,13 +755,6 @@ const Profile: React.FC = () => {
 
               {/* Plan targets */}
               <div className="mt-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <FaBullseye className="text-[#8cdb78] text-xs" />
-                  <p className="text-xs font-semibold text-gray-300">
-                    Your referral goals
-                  </p>
-                </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {PLAN_TARGETS.map((plan) => {
                     const remaining = Math.max(plan.price - referralBalance, 0);
@@ -792,9 +780,6 @@ const Profile: React.FC = () => {
                               {unlocked && (
                                 <FaStar className="text-[#8cdb78] text-[10px]" />
                               )}
-                            </p>
-                            <p className="text-[11px] text-gray-400 mt-0.5">
-                              {plan.tagline}
                             </p>
                           </div>
                           <p className="text-sm font-bold text-white whitespace-nowrap">
