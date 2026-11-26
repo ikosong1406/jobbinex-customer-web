@@ -65,13 +65,39 @@ const toArray = (v?: string | string[]): string[] => {
 };
 
 // --------------------------------------------------
-// Cities / roles / industries
+// Cities / countries / roles / industries
 // --------------------------------------------------
 
 const UK_CITIES = ["London","Manchester","Birmingham","Leeds","Glasgow","Liverpool","Edinburgh","Bristol","Sheffield","Newcastle","Nottingham","Leicester","Coventry","Belfast","Cardiff","Southampton","Reading","Milton Keynes"];
 const EUROPE_CITIES = ["Dublin","Berlin","Munich","Amsterdam","Rotterdam","Brussels","Paris","Lyon","Madrid","Barcelona","Lisbon","Porto","Milan","Rome","Zurich","Geneva","Vienna","Stockholm","Copenhagen","Oslo","Helsinki","Warsaw","Prague","Budapest","Athens"];
 const NORTH_AMERICA_CITIES = ["New York","Toronto","Vancouver","Montreal","Boston","Chicago","San Francisco","Seattle","Los Angeles","Houston","Miami","Atlanta","Washington DC","Dallas","Calgary","Edmonton"];
 const ALL_CITIES = [...UK_CITIES, ...EUROPE_CITIES, ...NORTH_AMERICA_CITIES];
+
+const COUNTRIES = [
+  "United Kingdom",
+  "Ireland",
+  "France",
+  "Germany",
+  "Netherlands",
+  "Belgium",
+  "Spain",
+  "Portugal",
+  "Italy",
+  "Switzerland",
+  "Austria",
+  "Sweden",
+  "Denmark",
+  "Norway",
+  "Finland",
+  "Poland",
+  "Czech Republic",
+  "Hungary",
+  "Greece",
+  "United States",
+  "Canada",
+];
+
+const ALL_LOCATIONS = [...ALL_CITIES, ...COUNTRIES];
 
 const FORMAL_ROLES = ["Software Engineer","Product Manager","Data Analyst","UX/UI Designer","Marketing Manager","Accountant","Financial Analyst","Project Manager","Business Analyst","Nurse","Teacher","Civil Engineer","Mechanical Engineer","Architect","HR Manager","Operations Manager","Sales Executive","Customer Success Manager","Recruiter","Consultant"];
 const INFORMAL_ROLES = ["Care Assistant","Care Worker","Nursing Assistant","Support Worker","Cleaner","Domestic Cleaner","Warehouse Operative","Picker / Packer","Delivery Driver","Van Driver","HGV Driver","Courier","Kitchen Assistant","Chef","Waitress / Waiter","Barista","Hotel Housekeeper","Security Officer","Construction Worker","Labourer","Electrician","Plumber","Painter & Decorator","Handyman","Farm Worker","Factory Worker","Packaging Operator","Food Production Operative","Retail Assistant","Shop Assistant","Cashier","Stockroom Assistant","Receptionist","Administrative Assistant","Teaching Assistant","School Support Staff","Hairdresser / Barber","Beautician"];
@@ -118,7 +144,7 @@ const Note: React.FC<{
   );
 };
 
-// Chip input
+// Chip input — supports custom values and automatic array conversion
 const ChipInput: React.FC<{
   label: string;
   icon: React.ReactNode;
@@ -131,17 +157,42 @@ const ChipInput: React.FC<{
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const add = (value: string) => {
-    const v = value.trim();
-    if (!v || values.includes(v)) return;
-    onChange([...values, v]);
+  // Split comma-separated values, trim whitespace and prevent duplicates.
+  const add = (raw: string, shouldFocus = true) => {
+    const parts = raw
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (parts.length === 0) return;
+
+    const next = [...values];
+
+    for (const part of parts) {
+      const alreadyExists = next.some(
+        (value) => value.toLowerCase() === part.toLowerCase()
+      );
+
+      if (!alreadyExists) next.push(part);
+    }
+
+    if (next.length !== values.length) onChange(next);
+
     setDraft("");
     setOpen(false);
-    inputRef.current?.focus();
+
+    if (shouldFocus) inputRef.current?.focus();
   };
-  const remove = (value: string) => onChange(values.filter((v) => v !== value));
+
+  const remove = (value: string) => {
+    onChange(values.filter((v) => v !== value));
+  };
+
   const available = suggestions.filter(
-    (s) => !values.includes(s) && s.toLowerCase().includes(draft.toLowerCase())
+    (suggestion) =>
+      !values.some(
+        (value) => value.toLowerCase() === suggestion.toLowerCase()
+      ) && suggestion.toLowerCase().includes(draft.toLowerCase())
   );
 
   return (
@@ -150,52 +201,83 @@ const ChipInput: React.FC<{
         <span className="text-gray-400">{icon}</span>
         {label}
       </label>
+
       <div
         onClick={() => inputRef.current?.focus()}
         className="flex flex-wrap items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2.5 py-2 transition focus-within:border-[#4eaa3c] focus-within:ring-4 focus-within:ring-green-50"
       >
-        {values.map((v) => (
+        {values.map((value) => (
           <span
-            key={v}
+            key={value}
             className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-[#347c28]"
           >
-            {v}
+            {value}
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); remove(v); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                remove(value);
+              }}
               className="text-[#4eaa3c]/70 hover:text-[#347c28]"
-              aria-label={`Remove ${v}`}
+              aria-label={`Remove ${value}`}
             >
               <FaTimes className="text-[9px]" />
             </button>
           </span>
         ))}
+
         <div className="relative flex-1 min-w-[130px]">
           <input
             ref={inputRef}
             value={draft}
-            onChange={(e) => { setDraft(e.target.value); setOpen(true); }}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setOpen(true);
+            }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); add(draft); }
-              if (e.key === "Backspace" && !draft && values.length) onChange(values.slice(0, -1));
+              if (e.key === "Enter") {
+                e.preventDefault();
+
+                if (draft.trim()) {
+                  add(draft);
+                } else if (available.length > 0) {
+                  add(available[0]);
+                }
+              }
+
+              // A comma also commits the current entry.
+              if (e.key === ",") {
+                e.preventDefault();
+                if (draft.trim()) add(draft);
+              }
+
+              if (e.key === "Backspace" && !draft && values.length > 0) {
+                onChange(values.slice(0, -1));
+              }
             }}
             onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 150)}
-            placeholder={values.length === 0 ? placeholder : ""}
+            onBlur={() => {
+              // Commit typed text when the user leaves the field,
+              // even if they did not press Enter or choose a suggestion.
+              if (draft.trim()) add(draft, false);
+              setOpen(false);
+            }}
+            placeholder={values.length === 0 ? placeholder : "Add another..."}
             className="w-full border-0 bg-transparent py-1 text-sm outline-none placeholder:text-gray-400"
           />
+
           {open && available.length > 0 && (
             <div className="absolute left-0 top-full z-20 mt-1 max-h-60 w-72 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
-              {available.slice(0, 10).map((s) => (
+              {available.slice(0, 10).map((suggestion) => (
                 <button
-                  key={s}
+                  key={suggestion}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => add(s)}
+                  onClick={() => add(suggestion)}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-emerald-50/60"
                 >
                   <FaPlus className="text-[10px] text-[#4eaa3c]" />
-                  {s}
+                  {suggestion}
                 </button>
               ))}
             </div>
@@ -605,7 +687,7 @@ const ProfileSetup: React.FC = () => {
                 What kind of work do you want?
               </h2>
               <p className="mt-1 text-xs text-gray-500">
-                Add as many as you like — formal and informal roles both welcome.
+                Add as many as you like — separate multiple values with commas. Formal and informal roles both welcome.
               </p>
             </div>
 
@@ -630,8 +712,8 @@ const ProfileSetup: React.FC = () => {
               icon={<FaMapMarkerAlt className="text-xs" />}
               values={locations}
               onChange={setLocations}
-              suggestions={ALL_CITIES}
-              placeholder="Type or pick a city…"
+              suggestions={ALL_LOCATIONS}
+              placeholder="Type a city or country…"
             />
           </div>
         )}
