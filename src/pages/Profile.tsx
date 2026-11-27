@@ -28,6 +28,7 @@ import { FiArrowUpRight } from "react-icons/fi";
 import Api from "../components/Api";
 
 const USER_DATA_ENDPOINT = `${Api}/customer/userdata`;
+const REFERRAL_BASE_URL = "https://app.jobbinex.com/signup";
 
 interface PlanData {
   name?: string;
@@ -269,28 +270,35 @@ const Profile: React.FC = () => {
   // ---------- REFERRAL ----------
   const referralCode = userData?.referralCode || "";
   const referralBalance = Number(userData?.balance ?? 0);
+  const referralLink = referralCode
+    ? `${REFERRAL_BASE_URL}?ref=${encodeURIComponent(referralCode)}`
+    : "";
 
-  const handleCopyCode = async () => {
-    if (!referralCode) {
-      toast.error("No referral code available yet.");
+  const handleCopyLink = async () => {
+    if (!referralLink) {
+      toast.error("No referral link available yet.");
       return;
     }
     try {
-      await navigator.clipboard.writeText(referralCode);
-      toast.success("Referral code copied!");
+      await navigator.clipboard.writeText(referralLink);
+      toast.success("Referral link copied!");
     } catch {
       toast.error("Could not copy. Please copy manually.");
     }
   };
 
   const handleShare = async () => {
-    const shareText = `Join me on this job platform! Use my referral code ${referralCode} when you sign up.`;
+    if (!referralLink) {
+      toast.error("No referral link available yet.");
+      return;
+    }
+    const shareText = `Join me on Jobbinex! Use my referral link to sign up:`;
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "Join with my referral code",
+          title: "Join Jobbinex with my referral link",
           text: shareText,
-          url: window.location.origin,
+          url: referralLink,
         });
         return;
       } catch {
@@ -298,9 +306,7 @@ const Profile: React.FC = () => {
       }
     }
     try {
-      await navigator.clipboard.writeText(
-        `${shareText} ${window.location.origin}`,
-      );
+      await navigator.clipboard.writeText(`${shareText} ${referralLink}`);
       toast.success("Referral link copied!");
     } catch {
       toast.error("Could not share. Please copy manually.");
@@ -663,11 +669,11 @@ const Profile: React.FC = () => {
       <section>
         <SectionHeader
           title="Refer & earn"
-          description="Share your code. Earn balance. Put it toward your plan."
+          description="Share your link. Earn balance. Put it toward your plan."
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Referral code + share */}
+          {/* Referral link + share */}
           <div className="relative overflow-hidden bg-white border border-gray-200 rounded-2xl p-6 shadow-sm lg:col-span-1">
             <div className="absolute -right-8 -top-8 w-32 h-32 bg-emerald-50 rounded-full blur-2xl opacity-80 pointer-events-none" />
             <div className="relative z-10">
@@ -677,7 +683,7 @@ const Profile: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900 text-sm">
-                    Your referral code
+                    Your referral link
                   </h3>
                   <p className="text-[11px] text-gray-400">
                     Share it with friends
@@ -686,15 +692,15 @@ const Profile: React.FC = () => {
               </div>
 
               <div className="mt-4 flex items-center gap-2">
-                <div className="flex-1 truncate rounded-xl border border-dashed border-[#4eaa3c]/40 bg-emerald-50/50 px-4 py-3 font-mono text-sm font-bold tracking-wider text-[#17231a]">
-                  {referralCode || "—"}
+                <div className="flex-1 truncate rounded-xl border border-dashed border-[#4eaa3c]/40 bg-emerald-50/50 px-4 py-3 font-mono text-xs font-semibold tracking-wide text-[#17231a]">
+                  {referralLink || "—"}
                 </div>
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
-                  onClick={handleCopyCode}
-                  disabled={!referralCode}
+                  onClick={handleCopyLink}
+                  disabled={!referralLink}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#4eaa3c] hover:bg-[#60bb4d] disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2.5 text-xs font-bold transition"
                 >
                   <FaCopy size={12} />
@@ -702,7 +708,7 @@ const Profile: React.FC = () => {
                 </button>
                 <button
                   onClick={handleShare}
-                  disabled={!referralCode}
+                  disabled={!referralLink}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 px-4 py-2.5 text-xs font-bold transition"
                 >
                   <FaShareAlt size={12} />

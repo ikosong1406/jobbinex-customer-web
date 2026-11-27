@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import axios, { AxiosError } from "axios";
 import toast, { Toaster } from "react-hot-toast";
 import bgImage from "../assets/background.jpg";
@@ -25,6 +25,7 @@ interface SignupResponse {
 
 const Signup: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>({
     firstname: "",
@@ -43,6 +44,17 @@ const Signup: React.FC = () => {
 
   // Progress bar width based on current step
   const progressWidth = currentStep === 1 ? "50%" : "100%";
+
+  // Prefill referral code from URL (?ref=CODE) on mount
+  useEffect(() => {
+    const refFromUrl = searchParams.get("ref");
+    if (refFromUrl && refFromUrl.trim()) {
+      setFormData((prev) => ({
+        ...prev,
+        referralCode: refFromUrl.trim(),
+      }));
+    }
+  }, [searchParams]);
 
   // --- Utility Functions ---
 
@@ -418,6 +430,11 @@ const Signup: React.FC = () => {
                     onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4eaa3c]"
                   />
+                  {searchParams.get("ref") && (
+                    <p className="text-xs text-[#4eaa3c] mt-1 font-medium">
+                      Referral code applied from your invite link.
+                    </p>
+                  )}
                 </div>
 
                 {/* Back + Submit Buttons */}
